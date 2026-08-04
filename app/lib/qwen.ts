@@ -17,9 +17,13 @@ async function getSessionToken(): Promise<string> {
 
 async function authedFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
   if (!endpoint) throw new Error("Worker Qwen belum dikonfigurasi oleh superadmin.");
-  return fetch(`${endpoint}${path}`, {
+    return fetch(`${endpoint}${path}`, {
     ...init,
-    headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "ngrok-skip-browser-warning": "1",
+      ...(init?.headers ?? {}),
+    },
   });
 }
 
