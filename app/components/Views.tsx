@@ -36,8 +36,8 @@ import { BookCover } from "./BookCover";
 
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
 
-export function HomeView({ allBooks, onChange, onSelect }: { allBooks: Book[]; onChange: ChangeView; onSelect: (book: Book) => void }) {
-  const featured = allBooks[0];
+export function HomeView({ allBooks = [], onChange, onSelect }: { allBooks: Book[]; onChange: ChangeView; onSelect: (book: Book) => void }) {
+  const featured = allBooks[0] ?? null;
   const continueBooks = allBooks.slice(1, 4);
   const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
   const doneCount = allBooks.filter((b) => b.generated || b.progress === 100).length;
