@@ -339,15 +339,20 @@ export function ActivityView({ recent = [] }: { recent?: string[] }) {
   );
 }
 
+type Prefs = { autoDownload: boolean; normalize: boolean; notify: boolean };
 export function SettingsView() {
-  const [prefs, setPrefs] = useState({ autoDownload: false, normalize: true, notify: true });
-  const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
-  useEffect(() => {
+  const [prefs, setPrefs] = useState<Prefs>(() => {
+    const defaultPrefs: Prefs = { autoDownload: false, normalize: true, notify: true };
+    if (typeof window === "undefined") return defaultPrefs;
     try {
       const raw = localStorage.getItem("apollonians-prefs");
-      if (raw) setPrefs((prev) => ({ ...prev, ...JSON.parse(raw) }));
+      if (raw) return { ...defaultPrefs, ...(JSON.parse(raw) as Partial<Prefs>) };
     } catch { /* abaikan */ }
-  }, []);
+    return defaultPrefs;
+  });
+  
+  const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
+
   const update = (key: "autoDownload" | "normalize" | "notify", value: boolean) => {
     setPrefs((prev) => {
       const next = { ...prev, [key]: value };
@@ -355,6 +360,7 @@ export function SettingsView() {
       return next;
     });
   };
+
   const previewVoice = async () => {
     if (previewState === "playing") {
       document.querySelector<HTMLAudioElement>("#piper-preview")?.pause();
@@ -375,6 +381,7 @@ export function SettingsView() {
       setPreviewState("error");
     }
   };
+
   return (
     <div className="view settings-view">
       <div className="page-title-row"><div><p className="eyebrow">PREFERENSI</p><h1>Pengaturan</h1><p>Perubahan tersimpan otomatis di perangkat ini.</p></div></div>
