@@ -32,3 +32,32 @@ export async function finishUsage(id: number | null, succeeded: boolean) {
   const { error } = await supabase.rpc("finish_generation", { event_id: id, succeeded });
   if (error) throw error;
 }
+
+export type QuotaInfo = {
+  dailyLimit: number;
+  usedToday: number;
+  remaining: number;
+  percentUsed: number;
+};
+
+export async function getQuotaInfo(): Promise<QuotaInfo | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return null;
+
+  const { data, error } = await supabase.rpc("get_quota_info");
+  if (error) {
+    // Fallback: kalau RPC belum dibuat, return null (biar tidak crash)
+    return null;
+  }
+  if (!data || data.length === 0) return null;
+  const row = data[0] as { daily_limit: number; used_today: number };
+  const remaining = Math.max(0, row.daily_limit - row.used_today);
+  return {
+    dailyLimit: row.daily_limit,
+    usedToday: row.used_today,
+    remaining,
+    percentUsed: row.daily_limit > 0 ? (row.used_today / row.daily_limit) * 100 : 0,
+  };
+}

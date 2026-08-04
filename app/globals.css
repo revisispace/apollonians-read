@@ -684,3 +684,71 @@ h2 { font-size: 28px; }
 
 /* Ikon empty-state居中 (tengah rapi) */
 .empty-state svg { display: block; margin: 0 auto 14px; }
+
+/* Indikator kuota di Studio */
+.quota-indicator {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf7f1;
+}
+.quota-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: #777a74;
+}
+.quota-head strong {
+  color: var(--forest-dark);
+  font-weight: 700;
+}
+.quota-track {
+  height: 4px;
+  border-radius: 4px;
+  background: #e2ddd3;
+  overflow: hidden;
+}
+.quota-track span {
+  display: block;
+  height: 100%;
+  background: var(--forest);
+  transition: width 0.3s ease;
+}
+
+/* Sleep timer dropdown di player */
+.sleep-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid #53605a;
+  border-radius: 14px;
+  background: transparent;
+  color: #d6ddd9;
+  font-size: 9px;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.sleep-button.active {
+  border-color: #e4b45c;
+  color: #e4b45c;
+  background: rgba(228, 180, 92, 0.08);
+}
+.sleep-button select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.sleep-label {
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+}

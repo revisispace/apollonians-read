@@ -33,6 +33,7 @@ import { generateQwenAudio, isQwenConfigured } from "../lib/qwen";
 import { getAppSettings } from "../lib/admin";
 import { finishUsage, reserveUsage } from "../lib/usage";
 import { BookCover } from "./BookCover";
+import { getQuotaInfo, type QuotaInfo } from "../lib/usage";
 
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
 
@@ -135,6 +136,12 @@ export function LibraryView({ allBooks, query, onChange, onSelect, onRename, onD
 
 type CreateMode = "link" | "file";
 
+const formatCharacters = (n: number) => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}jt`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}rb`;
+  return String(n);
+};
+
 export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Promise<void> }) {
   const [mode, setMode] = useState<CreateMode>("link");
   const [url, setUrl] = useState("");
@@ -147,6 +154,11 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
   const inputRef = useRef<HTMLInputElement>(null);
   const accepted = ".pdf,.epub,.docx,.txt,.md";
   const [qwenEnabled, setQwenEnabled] = useState(false);
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
+
+  useEffect(() => {
+    getQuotaInfo().then(setQuota).catch(() => setQuota(null));
+  }, []);
 
   useEffect(() => {
     getAppSettings().then((settings) => setQwenEnabled(settings.qwen_enabled && isQwenConfigured)).catch(() => setQwenEnabled(false));
@@ -305,6 +317,15 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
             {status === "error" && <XCircle size={18} />}
             <span>{message}</span>
           </div>}
+          {quota && voice === "Qwen3-TTS (eksperimental)" && (
+            <div className="quota-indicator" aria-label="Sisa kuota harian">
+              <div className="quota-head">
+                <span>Kuota harian ({voice === "Qwen3-TTS (eksperimental)" ? "server" : "lokal"})</span>
+                <strong>{formatCharacters(quota.remaining)} / {formatCharacters(quota.dailyLimit)} tersisa</strong>
+              </div>
+              <div className="quota-track"><span style={{ width: `${Math.min(100, quota.percentUsed)}%` }} /></div>
+            </div>
+          )}
           <button className="generate-button" disabled={status === "working"} onClick={createAudiobook}><WandSparkles size={19} />{status === "working" ? "Menyiapkan buku…" : "Buat audiobook"}<ArrowRight size={18} /></button>
           <p className="secure-note"><LockKeyhole size={14} />{voice === "Piper News ID" ? "Piper Bahasa Indonesia berjalan lokal. Teks tidak dikirim ke penyedia AI." : "Narator English (Ryan) melalui worker privat Oracle Cloud dengan kuota."}</p>
         </section>
