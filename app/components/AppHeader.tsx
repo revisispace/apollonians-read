@@ -13,9 +13,11 @@ type AppHeaderProps = {
   active: ViewId;
   query: string;
   onQuery: (query: string) => void;
+  onAccount: () => void;
+  accountLabel: string;
 };
 
-export function AppHeader({ active, query, onQuery }: AppHeaderProps) {
+export function AppHeader({ active, query, onQuery, onAccount, accountLabel }: AppHeaderProps) {
   return (
     <header className="app-header">
       <div className="mobile-title"><Menu size={22} /><strong>{titles[active]}</strong></div>
@@ -25,7 +27,7 @@ export function AppHeader({ active, query, onQuery }: AppHeaderProps) {
         <kbd>⌘ K</kbd>
       </label>
       <button className="icon-button notification-button" aria-label="Notifikasi"><Bell size={19} /><span /></button>
-      <span className="header-avatar">NZ</span>
+      <button className="header-avatar" onClick={onAccount} aria-label={`Akun: ${accountLabel}`}>{accountLabel.slice(0, 2).toUpperCase()}</button>
     </header>
   );
 }

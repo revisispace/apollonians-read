@@ -28,11 +28,16 @@ import {
   XCircle,
 } from "lucide-react";
 import { activities, books, type Book } from "../lib/content";
+import { parseBookFile, parseBookUrl } from "../lib/document-parser";
+import { saveLocalBook, saveAudioChunks } from "../lib/local-db";
+import { generateIndonesianAudio } from "../lib/piper";
 import { BookCover } from "./BookCover";
 
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
 
-export function HomeView({ onChange, onSelect }: { onChange: ChangeView; onSelect: (book: Book) => void }) {
+export function HomeView({ allBooks, onChange, onSelect }: { allBooks: Book[]; onChange: ChangeView; onSelect: (book: Book) => void }) {
+  const featured = allBooks[0] ?? books[0];
+  const continueBooks = allBooks.slice(1, 4);
   return (
     <div className="view home-view">
       <div className="welcome-row">
@@ -41,16 +46,16 @@ export function HomeView({ onChange, onSelect }: { onChange: ChangeView; onSelec
       </div>
 
       <section className="hero-listening">
-        <div className="hero-cover-wrap"><BookCover {...books[0]} large /></div>
+        <div className="hero-cover-wrap"><BookCover {...featured} large /></div>
         <div className="hero-copy">
           <span className="soft-label"><span className="pulse-dot" /> SEDANG DIDENGARKAN</span>
-          <h2>{books[0].title}</h2>
-          <p>{books[0].author}</p>
+          <h2>{featured.title}</h2>
+          <p>{featured.author}</p>
           <div className="chapter-row"><span>Bab 7 dari 12</span><span>64% selesai</span></div>
           <div className="large-progress"><span /></div>
           <small>2 jam 58 menit tersisa</small>
           <div className="hero-actions">
-            <button className="dark-button" onClick={() => onSelect(books[0])}><Play size={17} fill="currentColor" /> Lanjutkan</button>
+            <button className="dark-button" onClick={() => onSelect(featured)}><Play size={17} fill="currentColor" /> {featured.generated ? "Dengarkan" : "Lanjutkan"}</button>
             <button className="round-button" aria-label="Opsi buku"><MoreHorizontal size={19} /></button>
           </div>
         </div>
@@ -60,7 +65,7 @@ export function HomeView({ onChange, onSelect }: { onChange: ChangeView; onSelec
       <section className="section-block">
         <div className="section-heading"><div><p className="eyebrow">KEMBALI MENDENGARKAN</p><h2>Lanjutkan ceritamu</h2></div><button onClick={() => onChange("library")}>Lihat semua <ArrowRight size={16} /></button></div>
         <div className="continue-grid">
-          {books.slice(1, 4).map((book) => (
+          {continueBooks.map((book) => (
             <button className="continue-card" key={book.id} onClick={() => onSelect(book)}>
               <BookCover {...book} />
               <span className="continue-info"><strong>{book.title}</strong><small>{book.author}</small><span className="mini-progress"><i style={{ width: `${book.progress}%` }} /></span><small>{book.remaining}</small></span>
@@ -83,9 +88,16 @@ export function HomeView({ onChange, onSelect }: { onChange: ChangeView; onSelec
   );
 }
 
-export function LibraryView({ query, onChange, onSelect }: { query: string; onChange: ChangeView; onSelect: (book: Book) => void }) {
+export function LibraryView({ allBooks, query, onChange, onSelect }: { allBooks: Book[]; query: string; onChange: ChangeView; onSelect: (book: Book) => void }) {
   const [filter, setFilter] = useState("Semua buku");
-  const visibleBooks = books.filter((book) => `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase()));
+  const visibleBooks = allBooks.filter((book) => {
+    const matchesSearch = `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase());
+    if (!matchesSearch) return false;
+    if (filter === "Sedang dibaca") return book.progress > 0 && book.progress < 100;
+    if (filter === "Selesai") return book.progress === 100;
+    if (filter === "Belum dimulai") return book.progress === 0;
+    return true;
+  });
   return (
     <div className="view library-view">
       <div className="page-title-row"><div><p className="eyebrow">KOLEKSI PRIBADI</p><h1>Perpustakaan</h1><p>Semua cerita yang siap menemani harimu.</p></div><button className="primary-button" onClick={() => onChange("studio")}><Plus size={18} /> Tambah buku</button></div>
@@ -97,7 +109,7 @@ export function LibraryView({ query, onChange, onSelect }: { query: string; onCh
         {visibleBooks.map((book) => (
           <article className="library-card" key={book.id}>
             <button className="library-cover-button" onClick={() => onSelect(book)} aria-label={`Putar ${book.title}`}><BookCover {...book} /><span><Play size={19} fill="currentColor" /></span></button>
-            <div className="library-meta"><p>{book.category}</p><h3>{book.title}</h3><span>{book.author}</span><div className="book-meta-row"><small><Headphones size={13} /> {book.duration}</small><small>{book.progress}%</small></div><div className="mini-progress"><i style={{ width: `${book.progress}%` }} /></div></div>
+            <div className="library-meta"><p>{book.localOnly ? "LOKAL · " : ""}{book.category}</p><h3>{book.title}</h3><span>{book.author}</span><div className="book-meta-row"><small><Headphones size={13} /> {book.duration}</small><small>{book.generated ? "Audio siap" : `${book.progress}%`}</small></div><div className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></div></div>
           </article>
         ))}
       </div>
@@ -108,17 +120,18 @@ export function LibraryView({ query, onChange, onSelect }: { query: string; onCh
 
 type CreateMode = "link" | "file";
 
-export function StudioView({ onCreated }: { onCreated: () => void }) {
+export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Promise<void> }) {
   const [mode, setMode] = useState<CreateMode>("link");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [voice, setVoice] = useState("Nova");
+  const [voice, setVoice] = useState("Piper News ID");
   const [language, setLanguage] = useState("Bahasa Indonesia");
-  const [quality, setQuality] = useState("Seimbang");
+  const [quality, setQuality] = useState("Cuplikan cepat");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const accepted = ".pdf,.epub,.mobi,.docx,.txt,.md";
+  const accepted = ".pdf,.epub,.docx,.txt,.md";
 
   const handleFile = (incoming?: File) => {
     if (!incoming) return;
@@ -126,7 +139,7 @@ export function StudioView({ onCreated }: { onCreated: () => void }) {
     const allowed = accepted.split(",");
     if (!allowed.includes(extension) || incoming.size > 50 * 1024 * 1024) {
       setStatus("error");
-      setMessage("Gunakan PDF, EPUB, MOBI, DOCX, TXT, atau MD berukuran maksimal 50 MB.");
+      setMessage("Gunakan PDF, EPUB, DOCX, TXT, atau MD berukuran maksimal 50 MB.");
       return;
     }
     setFile(incoming);
@@ -150,12 +163,51 @@ export function StudioView({ onCreated }: { onCreated: () => void }) {
       }
     }
     setStatus("working");
-    setMessage("Membaca struktur buku dan menyiapkan setiap bab…");
-    window.setTimeout(() => {
+    setProgress(2);
+    setMessage("Membaca dan membersihkan teks buku…");
+    try {
+      const parsed = mode === "file" && file ? await parseBookFile(file) : await parseBookUrl(url.trim());
+      const wordCount = parsed.text.split(/\s+/).length;
+      const minutes = Math.max(1, Math.ceil(wordCount / 155));
+      const id = crypto.randomUUID();
+      const book: Book = {
+        id,
+        title: parsed.title,
+        author: parsed.author,
+        category: "Buku pribadi",
+        duration: minutes >= 60 ? `${Math.floor(minutes / 60)}j ${minutes % 60}m` : `${minutes}m`,
+        remaining: "Belum dimulai",
+        progress: 0,
+        palette: ["ochre", "coral", "navy", "sage", "plum"][Date.now() % 5],
+        sourceName: parsed.sourceName,
+        createdAt: new Date().toISOString(),
+        localOnly: true,
+        generated: false,
+      };
+      await saveLocalBook({ id, book, text: parsed.text, source: file ?? undefined, audioChunks: [], updatedAt: book.createdAt! });
+      await onCreated(book);
+      setMessage("Mengunduh model suara open-source dan membuat audio. Pertahankan tab ini tetap terbuka…");
+      const maximumChunks = quality === "Cuplikan cepat" ? 4 : quality === "Bab awal" ? 24 : Number.POSITIVE_INFINITY;
+      const result = await generateIndonesianAudio(parsed.text, (value) => {
+        if (value.phase === "model") {
+          const percent = value.total ? Math.round((value.completed / value.total) * 35) : 10;
+          setProgress(Math.max(5, percent));
+        } else {
+          setProgress(35 + Math.round((value.completed / value.total) * 65));
+          setMessage(`Membuat bagian audio ${value.completed} dari ${value.total}…`);
+        }
+      }, maximumChunks);
+      const saved = await saveAudioChunks(id, result.chunks);
+      setProgress(100);
       setStatus("done");
-      setMessage("Buku berhasil masuk antrean. Kamu bebas meninggalkan halaman ini.");
-      onCreated();
-    }, 1400);
+      setMessage(result.truncated
+        ? "Cuplikan audio tersimpan lokal. Pilih mode Buku penuh untuk mengonversi seluruh teks."
+        : "Audiobook selesai dan tersimpan privat di perangkat ini.");
+      await onCreated(saved.book);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Buku gagal diproses.");
+    }
   };
 
   return (
@@ -173,17 +225,18 @@ export function StudioView({ onCreated }: { onCreated: () => void }) {
           ) : (
             <button className={`drop-zone${file ? " has-file" : ""}`} onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleFile(event.dataTransfer.files[0]); }}>
               <input ref={inputRef} type="file" accept={accepted} hidden onChange={(event) => handleFile(event.target.files?.[0])} />
-              {file ? <><span className="upload-icon"><FileText size={25} /></span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB · Siap diunggah</small><span className="change-file">Ganti file</span></> : <><span className="upload-icon"><UploadCloud size={25} /></span><strong>Letakkan file buku di sini</strong><small>atau klik untuk memilih dari perangkat</small><span className="file-types">PDF · EPUB · MOBI · DOCX · TXT · MD &nbsp; Maks. 50 MB</span></>}
+              {file ? <><span className="upload-icon"><FileText size={25} /></span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB · Siap diproses lokal</small><span className="change-file">Ganti file</span></> : <><span className="upload-icon"><UploadCloud size={25} /></span><strong>Letakkan file buku di sini</strong><small>atau klik untuk memilih dari perangkat</small><span className="file-types">PDF · EPUB · DOCX · TXT · MD &nbsp; Maks. 50 MB</span></>}
             </button>
           )}
 
           <div className="step-heading second"><span>02</span><div><h3>Atur suara</h3><p>Sesuaikan karakter narasi dengan jenis bacaan.</p></div></div>
           <div className="setting-grid">
-            <label>Suara narator<select value={voice} onChange={(event) => setVoice(event.target.value)}><option>Nova</option><option>Alloy</option><option>Coral</option><option>Onyx</option><option>Sage</option></select></label>
-            <label>Bahasa<select value={language} onChange={(event) => setLanguage(event.target.value)}><option>Bahasa Indonesia</option><option>English</option><option>Bahasa Melayu</option></select></label>
-            <label>Kualitas<select value={quality} onChange={(event) => setQuality(event.target.value)}><option>Seimbang</option><option>Ekspresif</option><option>Hemat data</option></select></label>
+            <label>Suara narator<select value={voice} onChange={(event) => setVoice(event.target.value)}><option>Piper News ID</option></select></label>
+            <label>Bahasa<select value={language} onChange={(event) => setLanguage(event.target.value)}><option>Bahasa Indonesia</option></select></label>
+            <label>Mode proses<select value={quality} onChange={(event) => setQuality(event.target.value)}><option>Cuplikan cepat</option><option>Bab awal</option><option>Buku penuh</option></select></label>
           </div>
-          <div className="estimate-row"><Clock3 size={17} /><span>Estimasi proses</span><strong>± 12–18 menit</strong></div>
+          <div className="estimate-row"><Clock3 size={17} /><span>Diproses di perangkat</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
+          {status === "working" && <div className="conversion-progress" aria-label={`Progres ${progress}%`}><span style={{ width: `${progress}%` }} /></div>}
           {status !== "idle" && <div className={`status-message ${status}`}>
             {status === "working" && <RefreshCw size={18} className="spin" />}
             {status === "done" && <CheckCircle2 size={18} />}
@@ -191,7 +244,7 @@ export function StudioView({ onCreated }: { onCreated: () => void }) {
             <span>{message}</span>
           </div>}
           <button className="generate-button" disabled={status === "working"} onClick={createAudiobook}><WandSparkles size={19} /> {status === "working" ? "Menyiapkan buku…" : "Buat audiobook"}<ArrowRight size={18} /></button>
-          <p className="secure-note"><LockKeyhole size={14} /> Suara dihasilkan AI. Secret tetap di server dan tidak pernah dikirim ke browser.</p>
+          <p className="secure-note"><LockKeyhole size={14} /> Piper berjalan lokal. Tidak ada teks buku atau API key yang dikirim ke penyedia AI.</p>
         </section>
 
         <aside className="studio-aside">
@@ -203,7 +256,7 @@ export function StudioView({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-export function ActivityView() {
+export function ActivityView({ recent = [] }: { recent?: string[] }) {
   return (
     <div className="view activity-view">
       <div className="page-title-row"><div><p className="eyebrow">RIWAYAT PROSES</p><h1>Aktivitas</h1><p>Pantau buku yang sedang dibuat dan riwayat konversimu.</p></div></div>
@@ -214,7 +267,7 @@ export function ActivityView() {
       </section>
       <section className="activity-list">
         <div className="activity-list-heading"><h3>Semua aktivitas</h3><button>30 hari terakhir <ChevronDown size={15} /></button></div>
-        {activities.map((item) => <article key={`${item.title}-${item.time}`}><span className={`activity-state ${item.state === "Diproses" ? "processing" : item.state === "Perlu dicek" ? "warning" : ""}`}>{item.state === "Diproses" ? <RefreshCw size={18} className="spin" /> : item.state === "Perlu dicek" ? <XCircle size={18} /> : <Check size={18} />}</span><div><h4>{item.title}</h4><p>{item.detail}</p></div><time>{item.time}</time><button aria-label="Opsi aktivitas"><MoreHorizontal size={18} /></button></article>)}
+        {[...recent.map((title) => ({ title, detail: "Audio lokal selesai dibuat", time: "Baru saja", state: "Selesai" })), ...activities].map((item, index) => <article key={`${item.title}-${item.time}-${index}`}><span className={`activity-state ${item.state === "Diproses" ? "processing" : item.state === "Perlu dicek" ? "warning" : ""}`}>{item.state === "Diproses" ? <RefreshCw size={18} className="spin" /> : item.state === "Perlu dicek" ? <XCircle size={18} /> : <Check size={18} />}</span><div><h4>{item.title}</h4><p>{item.detail}</p></div><time>{item.time}</time><button aria-label="Opsi aktivitas"><MoreHorizontal size={18} /></button></article>)}
       </section>
     </div>
   );
@@ -226,23 +279,25 @@ export function SettingsView() {
   const [notify, setNotify] = useState(true);
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
 
-  const previewVoice = () => {
-    if (!("speechSynthesis" in window)) { setPreviewState("error"); return; }
+  const previewVoice = async () => {
     if (previewState === "playing") {
-      window.speechSynthesis.cancel();
+      document.querySelector<HTMLAudioElement>("#piper-preview")?.pause();
       setPreviewState("idle");
       return;
     }
     setPreviewState("loading");
-    const utterance = new SpeechSynthesisUtterance("Halo, ini adalah contoh suara narator untuk Apollonians Read. Buku apa pun, kini bisa kamu dengarkan.");
-    utterance.lang = "id-ID";
-    utterance.rate = 0.95;
-    const indonesianVoice = window.speechSynthesis.getVoices().find((item) => item.lang.toLowerCase().startsWith("id"));
-    if (indonesianVoice) utterance.voice = indonesianVoice;
-    utterance.onstart = () => setPreviewState("playing");
-    utterance.onend = () => setPreviewState("idle");
-    utterance.onerror = () => setPreviewState("error");
-    window.speechSynthesis.speak(utterance);
+    try {
+      const result = await generateIndonesianAudio("Halo, ini adalah contoh suara narator open-source untuk Apollonians Read.", undefined, 1);
+      const audio = document.querySelector<HTMLAudioElement>("#piper-preview");
+      if (!audio) throw new Error();
+      audio.src = URL.createObjectURL(result.chunks[0]);
+      audio.onplay = () => setPreviewState("playing");
+      audio.onended = () => setPreviewState("idle");
+      audio.onerror = () => setPreviewState("error");
+      await audio.play();
+    } catch {
+      setPreviewState("error");
+    }
   };
 
   return (
@@ -251,7 +306,7 @@ export function SettingsView() {
       <div className="settings-layout">
         <aside className="settings-menu"><button className="active"><Settings2 size={17} /> Audio & narasi</button><button><Download size={17} /> Unduhan</button><button><ShieldCheck size={17} /> Privasi & keamanan</button></aside>
         <section className="settings-panel">
-          <div className="settings-section"><div className="settings-section-head"><div><h3>Suara perangkat</h3><p>Menggunakan suara yang tersedia di browser pengguna.</p></div><button className="preview-button" onClick={previewVoice}>{previewState === "loading" ? <RefreshCw className="spin" size={16} /> : previewState === "playing" ? <Pause size={16} /> : <Play size={16} fill="currentColor" />} {previewState === "playing" ? "Jeda" : "Dengar contoh"}</button></div>{previewState === "error" && <p className="inline-warning">Browser ini belum menyediakan suara Bahasa Indonesia.</p>}<div className="voice-options">{["Natural", "Tenang", "Ekspresif", "Dalam"].map((item, index) => <button key={item} className={index === 0 ? "active" : ""}><span className="voice-wave">▂▅▃▆▂</span><strong>{item}</strong><small>{["Suara sistem", "Kecepatan 0.9×", "Kecepatan 1.05×", "Nada rendah"][index]}</small>{index === 0 && <CheckCircle2 size={17} />}</button>)}</div></div>
+          <div className="settings-section"><div className="settings-section-head"><div><h3>Piper Bahasa Indonesia</h3><p>Model open-source berjalan lokal. Unduhan pertama sekitar 63 MB.</p></div><button className="preview-button" onClick={previewVoice}>{previewState === "loading" ? <RefreshCw className="spin" size={16} /> : previewState === "playing" ? <Pause size={16} /> : <Play size={16} fill="currentColor" />} {previewState === "playing" ? "Jeda" : "Dengar contoh"}</button></div>{previewState === "error" && <p className="inline-warning">Model gagal dimuat. Pastikan memakai Chrome/Edge terbaru dan koneksi internet tersedia saat unduhan pertama.</p>}<audio id="piper-preview" hidden /><div className="voice-options"><button className="active"><span className="voice-wave">▂▅▃▆▂</span><strong>News TTS ID</strong><small>Piper · ONNX lokal</small><CheckCircle2 size={17} /></button></div></div>
           <div className="settings-section"><h3>Pemutaran & hasil</h3><ToggleRow title="Normalisasi volume" copy="Seimbangkan volume antar bab secara otomatis." enabled={normalize} onChange={setNormalize} /><ToggleRow title="Unduh otomatis" copy="Simpan audio baru untuk didengarkan offline." enabled={autoDownload} onChange={setAutoDownload} /><ToggleRow title="Notifikasi selesai" copy="Beri tahu ketika audiobook siap didengar." enabled={notify} onChange={setNotify} /></div>
           <div className="settings-footer"><button className="dark-button">Simpan perubahan</button></div>
         </section>

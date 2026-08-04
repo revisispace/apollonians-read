@@ -22,7 +22,7 @@ type NavigationProps = {
   onChange: (view: ViewId) => void;
 };
 
-export function Sidebar({ active, onChange }: NavigationProps) {
+export function Sidebar({ active, onChange, profileName, onAccount }: NavigationProps & { profileName: string; onAccount: () => void }) {
   return (
     <aside className="sidebar">
       <button className="brand" onClick={() => onChange("home")} aria-label="Ke beranda">
@@ -38,13 +38,13 @@ export function Sidebar({ active, onChange }: NavigationProps) {
         ))}
       </nav>
       <div className="storage-card">
-        <div className="storage-heading"><span>Penyimpanan</span><strong>4.2 GB</strong></div>
+        <div className="storage-heading"><span>Penyimpanan</span><strong>Lokal</strong></div>
         <div className="storage-track"><span /></div>
-        <small>4.2 GB dari 10 GB terpakai</small>
+        <small>File tidak dikirim ke server</small>
       </div>
-      <button className="profile-card">
-        <span className="avatar">NZ</span>
-        <span><strong>Nabila Zachra</strong><small>Paket personal</small></span>
+      <button className="profile-card" onClick={onAccount}>
+        <span className="avatar">{profileName.slice(0, 2).toUpperCase()}</span>
+        <span><strong>{profileName}</strong><small>Gratis · open-source</small></span>
         <span className="profile-more">•••</span>
       </button>
     </aside>

@@ -1,5 +1,5 @@
 export type Book = {
-  id: number;
+  id: string;
   title: string;
   author: string;
   progress: number;
@@ -7,11 +7,15 @@ export type Book = {
   remaining: string;
   palette: string;
   category: string;
+  createdAt?: string;
+  sourceName?: string;
+  localOnly?: boolean;
+  generated?: boolean;
 };
 
 export const books: Book[] = [
   {
-    id: 1,
+    id: "demo-1",
     title: "The Anthropocene Reviewed",
     author: "John Green",
     progress: 64,
@@ -21,7 +25,7 @@ export const books: Book[] = [
     category: "Esai",
   },
   {
-    id: 2,
+    id: "demo-2",
     title: "Filosofi Teras",
     author: "Henry Manampiring",
     progress: 31,
@@ -31,7 +35,7 @@ export const books: Book[] = [
     category: "Filsafat",
   },
   {
-    id: 3,
+    id: "demo-3",
     title: "Laut Bercerita",
     author: "Leila S. Chudori",
     progress: 82,
@@ -41,7 +45,7 @@ export const books: Book[] = [
     category: "Fiksi",
   },
   {
-    id: 4,
+    id: "demo-4",
     title: "Atomic Habits",
     author: "James Clear",
     progress: 12,
@@ -51,7 +55,7 @@ export const books: Book[] = [
     category: "Pengembangan diri",
   },
   {
-    id: 5,
+    id: "demo-5",
     title: "Sapiens",
     author: "Yuval Noah Harari",
     progress: 47,
@@ -61,7 +65,7 @@ export const books: Book[] = [
     category: "Sejarah",
   },
   {
-    id: 6,
+    id: "demo-6",
     title: "Pulang",
     author: "Tere Liye",
     progress: 0,

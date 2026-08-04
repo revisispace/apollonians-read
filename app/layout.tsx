@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "./lib/auth";
 
 const pagesOwner = process.env.GITHUB_REPOSITORY_OWNER;
 const pagesRepository = process.env.GITHUB_REPOSITORY?.split("/")[1];
@@ -34,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body><AuthProvider>{children}</AuthProvider></body>
     </html>
   );
 }
