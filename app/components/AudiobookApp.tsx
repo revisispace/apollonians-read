@@ -15,7 +15,7 @@ import { AdminView } from "./AdminView";
 export function AudiobookApp() {
   const [active, setActive] = useState<ViewId>("home");
   const [query, setQuery] = useState("");
-  const [selectedBook, setSelectedBook] = useState<Book>(books[0]);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(books[0] ?? null);
   const [activityBadge, setActivityBadge] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [personalBooks, setPersonalBooks] = useState<Book[]>([]);
@@ -23,7 +23,12 @@ export function AudiobookApp() {
   const auth = useAuth();
 
   useEffect(() => {
-    listLocalBooks().then((assets) => setPersonalBooks(assets.map((asset) => asset.book))).catch(console.error);
+    listLocalBooks().then((assets) => {
+      const loaded = assets.map((asset) => asset.book);
+      setPersonalBooks(loaded);
+      // Kalau belum ada buku terpilih, pilih buku lokal pertama sebagai default
+      setSelectedBook((current) => current ?? loaded[0] ?? null);
+    }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -31,7 +36,10 @@ export function AudiobookApp() {
     listCloudBooks().then((cloudBooks) => {
       setPersonalBooks((current) => {
         const localIds = new Set(current.map((book) => book.id));
-        return [...current, ...cloudBooks.filter((book) => !localIds.has(book.id))];
+        const merged = [...current, ...cloudBooks.filter((book) => !localIds.has(book.id))];
+        // Pilih buku cloud pertama kalau belum ada pilihan
+        setSelectedBook((sel) => sel ?? merged[0] ?? null);
+        return merged;
       });
     }).catch(console.error);
   }, [auth.user]);
@@ -39,6 +47,7 @@ export function AudiobookApp() {
   const allBooks = useMemo(() => [...personalBooks, ...books], [personalBooks]);
 
   const selectBook = (book: Book) => setSelectedBook(book);
+
   const createdBook = async (book: Book) => {
     setPersonalBooks((current) => [book, ...current.filter((item) => item.id !== book.id)]);
     setSelectedBook(book);
@@ -56,14 +65,21 @@ export function AudiobookApp() {
     await updateLocalBookTitle(book.id, cleanTitle);
     const updated = { ...book, title: cleanTitle };
     setPersonalBooks((current) => current.map((item) => item.id === book.id ? updated : item));
-    setSelectedBook((current) => current.id === book.id ? updated : current);
+    setSelectedBook((current) => current?.id === book.id ? updated : current);
   };
 
   const deleteBook = async (book: Book) => {
     if (auth.user) await deleteCloudBook(book.id);
     await removeLocalBook(book.id);
-    setPersonalBooks((current) => current.filter((item) => item.id !== book.id));
-    setSelectedBook((current) => current.id === book.id ? (personalBooks.find((item) => item.id !== book.id) ?? books[0]) : current);
+    setPersonalBooks((current) => {
+      const remaining = current.filter((item) => item.id !== book.id);
+      // Kalau yang dihapus adalah buku terpilih, ganti ke buku lain (atau null)
+      setSelectedBook((sel) => {
+        if (sel?.id !== book.id) return sel;
+        return remaining[0] ?? null;
+      });
+      return remaining;
+    });
   };
 
   return (
@@ -79,7 +95,7 @@ export function AudiobookApp() {
           {active === "settings" && <SettingsView />}
           {active === "admin" && auth.isSuperadmin && <AdminView />}
         </main>
-        <AudioPlayer book={selectedBook} />
+        {selectedBook && <AudioPlayer book={selectedBook} />}
       </div>
       {activityBadge && active !== "activity" && <button className="activity-toast" onClick={() => { setActive("activity"); setActivityBadge(false); }}><span>1</span> Proses baru ditambahkan</button>}
       <MobileNav active={active} onChange={setActive} isSuperadmin={auth.isSuperadmin} />
