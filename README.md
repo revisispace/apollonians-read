@@ -120,4 +120,4 @@ Setelah website dideploy ulang, aktifkan Qwen dari panel Superadmin. Integrasi Q
 - `services/qwen-tts` — worker Qwen3-TTS mandiri.
 - `.github/workflows` — deployment otomatis GitHub Pages.
 
-Daftar lisensi komponen utama tersedia di [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Daftar lisensi komponen utama tersedia di [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). 
