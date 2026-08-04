@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   description: "Studio audiobook pribadi untuk mengubah tautan dan file buku menjadi pengalaman mendengarkan yang nyaman.",
   applicationName: "Apollonians Read",
   icons: {
-    icon: "/apollonians_read_brand.png",
-    apple: "/apollonians_read_brand.png",
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apollonians_read_brand/app-icon.svg" }],
   },
   openGraph: {
     title: "Apollonians Read",
