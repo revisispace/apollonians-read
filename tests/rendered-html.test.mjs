@@ -26,7 +26,8 @@ test("uses local Piper and optional Supabase without exposing server secrets", a
   assert.match(client, /generateIndonesianAudio/);
   assert.match(piper, /id_ID-news_tts-medium/);
   assert.doesNotMatch(client, /OPENAI_API_KEY|DASHSCOPE_API_KEY|Authorization:\s*`Bearer/);
-  assert.doesNotMatch(exampleEnv, /OPENAI_API_KEY|DASHSCOPE_API_KEY|SUPABASE_SERVICE_ROLE_KEY=/);
+  assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.doesNotMatch(exampleEnv, /OPENAI_API_KEY|DASHSCOPE_API_KEY|SUPABASE_SERVICE_ROLE_KEY=|sb_secret_[A-Za-z0-9]/);
   assert.match(gitignore, /^\.env\*$/m);
   assert.match(workflow, /actions\/deploy-pages@v4/);
   assert.match(workflow, /npm run build:pages/);

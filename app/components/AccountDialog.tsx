@@ -57,7 +57,7 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
             </button>
           </form>
         )}
-        <p className="privacy-copy">Tidak ada service-role key atau kunci TTS di browser. Supabase anon key dilindungi oleh kebijakan RLS.</p>
+        <p className="privacy-copy">Tidak ada service-role key atau kunci TTS di browser. Supabase publishable key dilindungi oleh kebijakan RLS.</p>
       </section>
     </div>
   );

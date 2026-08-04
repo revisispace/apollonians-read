@@ -38,17 +38,17 @@ Supabase hanya menyimpan akun dan metadata. File buku, teks lengkap, dan audio t
 
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://PROJECT_ID.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=ANON_PUBLIC_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_EXAMPLE
 ```
 
-Jangan gunakan atau membagikan `service_role` key. Anon key bukan secret server, tetapi seluruh tabel tetap wajib dilindungi RLS seperti pada skema proyek ini.
+Jangan gunakan atau membagikan `service_role` maupun `sb_secret` key. Publishable key bukan secret server, tetapi seluruh tabel tetap wajib dilindungi RLS seperti pada skema proyek ini.
 
 ## Mengaktifkan Supabase di GitHub Pages
 
 Di repository GitHub, buka **Settings → Secrets and variables → Actions → Variables**, lalu buat:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
 Gunakan **Variables**, bukan Secrets, karena nilai `NEXT_PUBLIC_*` memang dikompilasi ke JavaScript browser. Keamanan data berasal dari autentikasi dan Row Level Security.
 
