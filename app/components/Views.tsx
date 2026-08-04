@@ -6,30 +6,26 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
-  ChevronDown,
   Clock3,
-  Download,
   FileAudio,
   FileText,
   Globe2,
   Headphones,
   Link2,
   LockKeyhole,
-  MoreHorizontal,
-  Pencil,
   Pause,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
-  Settings2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UploadCloud,
   WandSparkles,
-  Trash2,
   XCircle,
 } from "lucide-react";
-import { activities, books, type Book } from "../lib/content";
+import { type Book } from "../lib/content";
 import { parseBookFile, parseBookUrl, textChunks } from "../lib/document-parser";
 import { saveLocalBook, saveAudioChunks, appendAudioChunk, listLocalBooks, getLocalBook } from "../lib/local-db";
 import { generateIndonesianAudio } from "../lib/piper";
@@ -41,50 +37,55 @@ import { BookCover } from "./BookCover";
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
 
 export function HomeView({ allBooks, onChange, onSelect }: { allBooks: Book[]; onChange: ChangeView; onSelect: (book: Book) => void }) {
-  const featured = allBooks[0] ?? books[0];
+  const featured = allBooks[0];
   const continueBooks = allBooks.slice(1, 4);
+  const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
+  const doneCount = allBooks.filter((b) => b.generated || b.progress === 100).length;
   return (
     <div className="view home-view">
       <div className="welcome-row">
-        <div><p className="eyebrow">SELASA, 4 AGUSTUS</p><h1>Selamat datang kembali, Nabila.</h1><p>Lanjutkan cerita yang sempat tertunda.</p></div>
+        <div><p className="eyebrow">{today}</p><h1>Selamat datang kembali, Nabila.</h1><p>{allBooks.length ? "Lanjutkan cerita yang sempat tertunda." : "Saatnya mengubah bacaan menjadi pengalaman."}</p></div>
         <button className="primary-button" onClick={() => onChange("studio")}><Plus size={18} /> Buat audiobook</button>
       </div>
-      <section className="hero-listening">
-        <div className="hero-cover-wrap"><BookCover {...featured} large /></div>
-        <div className="hero-copy">
-          <span className="soft-label"><span className="pulse-dot" /> SEDANG DIDENGARKAN</span>
-          <h2>{featured.title}</h2>
-          <p>{featured.author}</p>
-          <div className="chapter-row"><span>Bab 7 dari 12</span><span>64% selesai</span></div>
-          <div className="large-progress"><span /></div>
-          <small>2 jam 58 menit tersisa</small>
-          <div className="hero-actions">
-            <button className="dark-button" onClick={() => onSelect(featured)}><Play size={17} fill="currentColor" />{featured.generated ? "Dengarkan" : "Lanjutkan"}</button>
-            <button className="round-button" aria-label="Opsi buku"><MoreHorizontal size={19} /></button>
+      {!featured ? (
+        <section className="empty-state"><BookOpen size={30} /><h3>Belum ada audiobook</h3><p>Buat audiobook pertamamu dari tautan atau file buku — gratis dan privat.</p><button className="primary-button" onClick={() => onChange("studio")}>Buat sekarang</button></section>
+      ) : (
+        <section className="hero-listening">
+          <div className="hero-cover-wrap"><BookCover {...featured} large /></div>
+          <div className="hero-copy">
+            <span className="soft-label"><span className="pulse-dot" /> {featured.generated ? "AUDIO SIAP" : "SEDANG DIDENGARKAN"}</span>
+            <h2>{featured.title}</h2>
+            <p>{featured.author}</p>
+            <div className="chapter-row"><span>{featured.generated ? "Audiobook selesai" : `Progres ${featured.progress}%`}</span><span>{featured.remaining}</span></div>
+            <div className="large-progress"><span style={{ width: `${featured.generated ? 100 : featured.progress}%` }} /></div>
+            <small>Durasi ± {featured.duration}</small>
+            <div className="hero-actions">
+              <button className="dark-button" onClick={() => onSelect(featured)}><Play size={17} fill="currentColor" />{featured.generated ? "Dengarkan" : "Lanjutkan"}</button>
+            </div>
           </div>
-        </div>
-        <div className="hero-quote"><span>“</span><p>We’re here because we’re here because we’re here.</p><small>— John Green</small></div>
-      </section>
-      <section className="section-block">
-        <div className="section-heading"><div><p className="eyebrow">KEMBALI MENDENGARKAN</p><h2>Lanjutkan ceritamu</h2></div><button onClick={() => onChange("library")}>Lihat semua <ArrowRight size={16} /></button></div>
-        <div className="continue-grid">
-          {continueBooks.map((book) => (
-            <button className="continue-card" key={book.id} onClick={() => onSelect(book)}>
-              <BookCover {...book} />
-              <span className="continue-info"><strong>{book.title}</strong><small>{book.author}</small><span className="mini-progress"><i style={{ width: `${book.progress}%` }} /></span><small>{book.remaining}</small></span>
-              <span className="card-play"><Play size={15} fill="currentColor" /></span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <div className="lower-grid">
-        <section className="insight-card">
-          <div><p className="eyebrow">RINGKASAN MINGGU INI</p><h2>4j 32m</h2><span>+18% dari minggu lalu</span></div>
-          <div className="bar-chart" aria-label="Grafik waktu dengar mingguan">
-            {[35, 58, 42, 79, 53, 88, 64].map((height, index) => <span key={index} style={{ height: `${height}%` }} className={index === 5 ? "peak" : ""}><i>{["S", "S", "R", "K", "J", "S", "M"][index]}</i></span>)}
+          <div className="hero-quote"><span>“</span><p>We’re here because we’re here because we’re here.</p><small>— John Green</small></div>
+        </section>
+      )}
+      {continueBooks.length > 0 && (
+        <section className="section-block">
+          <div className="section-heading"><div><p className="eyebrow">KEMBALI MENDENGARKAN</p><h2>Lanjutkan ceritamu</h2></div><button onClick={() => onChange("library")}>Lihat semua <ArrowRight size={16} /></button></div>
+          <div className="continue-grid">
+            {continueBooks.map((book) => (
+              <button className="continue-card" key={book.id} onClick={() => onSelect(book)}>
+                <BookCover {...book} />
+                <span className="continue-info"><strong>{book.title}</strong><small>{book.author}</small><span className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></span><small>{book.remaining}</small></span>
+                <span className="card-play"><Play size={15} fill="currentColor" /></span>
+              </button>
+            ))}
           </div>
         </section>
-        <section className="tip-card"><span className="tip-icon"><Sparkles size={19} /></span><div><p className="eyebrow">TIPS MENDENGARKAN</p><h3>Atur sleep timer sebelum tidur</h3><p>Audio akan berhenti otomatis tanpa kehilangan posisi terakhir.</p><button>Atur sekarang <ArrowRight size={15} /></button></div></section>
+      )}
+      <div className="lower-grid">
+        <section className="insight-card">
+          <div><p className="eyebrow">KOLEKSIMU</p><h2>{allBooks.length}</h2><span>{doneCount} audiobook selesai</span></div>
+          <button className="dark-button" onClick={() => onChange("library")}>Buka perpustakaan <ArrowRight size={16} /></button>
+        </section>
+        <section className="tip-card"><span className="tip-icon"><Sparkles size={19} /></span><div><p className="eyebrow">TIPS MENDENGARKAN</p><h3>Atur preferensi audiomu</h3><p>Normalisasi volume dan unduhan otomatis bisa diatur di Pengaturan.</p><button onClick={() => onChange("settings")}>Buka pengaturan <ArrowRight size={15} /></button></div></section>
       </div>
     </div>
   );
@@ -92,33 +93,41 @@ export function HomeView({ allBooks, onChange, onSelect }: { allBooks: Book[]; o
 
 export function LibraryView({ allBooks, query, onChange, onSelect, onRename, onDelete }: { allBooks: Book[]; query: string; onChange: ChangeView; onSelect: (book: Book) => void; onRename: (book: Book, title: string) => Promise<void>; onDelete: (book: Book) => Promise<void> }) {
   const [filter, setFilter] = useState("Semua buku");
+  const [sort, setSort] = useState("Terbaru");
   const [editing, setEditing] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [message, setMessage] = useState("");
-  const visibleBooks = allBooks.filter((book) => {
+  let visibleBooks = allBooks.filter((book) => {
     const matchesSearch = `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase());
     if (!matchesSearch) return false;
     if (filter === "Sedang dibaca") return book.progress > 0 && book.progress < 100;
-    if (filter === "Selesai") return book.progress === 100;
-    if (filter === "Belum dimulai") return book.progress === 0;
+    if (filter === "Selesai") return book.progress === 100 || book.generated;
+    if (filter === "Belum dimulai") return book.progress === 0 && !book.generated;
     return true;
   });
+  if (sort === "Judul A-Z") visibleBooks = [...visibleBooks].sort((a, b) => a.title.localeCompare(b.title));
+  else if (sort === "Progres") visibleBooks = [...visibleBooks].sort((a, b) => (b.generated ? 100 : b.progress) - (a.generated ? 100 : a.progress));
+  else visibleBooks = [...visibleBooks].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   return (
     <div className="view library-view">
-      <div className="page-title-row"><div><p className="eyebrow">KOLEKSI PRIBADI</p><h1>Perpustakaan</h1><p>Semua cerita yang siap menemani harimu.</p></div><button className="primary-button" onClick={() => onChange("studio")}><Plus size={18} /> Tambah buku</button></div>
+      <div className="page-title-row"><div><p className="eyebrow">KOLEKSI PRIBADI</p><h1>Perpustakaan</h1><p>{allBooks.length ? `${visibleBooks.length} dari ${allBooks.length} buku ditampilkan.` : "Semua cerita yang siap menemani harimu."}</p></div><button className="primary-button" onClick={() => onChange("studio")}><Plus size={18} /> Tambah buku</button></div>
       <div className="filter-row">
         {["Semua buku", "Sedang dibaca", "Selesai", "Belum dimulai"].map((item) => <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item}</button>)}
-        <button className="sort-button">Terbaru <ChevronDown size={15} /></button>
+        <select className="sort-button" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Urutkan buku">
+          <option>Terbaru</option>
+          <option>Judul A-Z</option>
+          <option>Progres</option>
+        </select>
       </div>
       <div className="library-grid">
         {visibleBooks.map((book) => (
           <article className="library-card" key={book.id}>
             <button className="library-cover-button" onClick={() => onSelect(book)} aria-label={`Putar ${book.title}`}><BookCover {...book} /><span><Play size={19} fill="currentColor" /></span></button>
-            <div className="library-meta"><p>{book.id.startsWith("demo-") ? "CONTOH · " : book.localOnly ? "LOKAL · " : ""}{book.category}</p>{editing === book.id ? <form className="title-editor" onSubmit={async (event) => { event.preventDefault(); const title = draftTitle.trim(); if (!title) return; try { await onRename(book, title); setEditing(null); setMessage("Judul berhasil diubah."); } catch (error) { setMessage(error instanceof Error ? error.message : "Judul gagal diubah."); } }}><input maxLength={300} autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} aria-label="Judul baru" /><button>Simpan</button><button type="button" onClick={() => setEditing(null)}>Batal</button></form> : <h3>{book.title}</h3>}<span>{book.author}</span><div className="book-meta-row"><small><Headphones size={13} />{book.duration}</small><small>{book.generated ? "Audio siap" : `${book.progress}%`}</small></div><div className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></div>{!book.id.startsWith("demo-") && <div className="book-actions"><button onClick={() => { setEditing(book.id); setDraftTitle(book.title); }}><Pencil size={13} /> Ubah judul</button><button className="delete-book" onClick={async () => { if (!window.confirm(`Hapus “${book.title}” beserta audio lokalnya?`)) return; try { await onDelete(book); setMessage("Buku berhasil dihapus."); } catch (error) { setMessage(error instanceof Error ? error.message : "Buku gagal dihapus."); } }}><Trash2 size={13} /> Hapus</button></div>}</div>
+            <div className="library-meta"><p>{book.localOnly ? "LOKAL · " : ""}{book.category}</p>{editing === book.id ? <form className="title-editor" onSubmit={async (event) => { event.preventDefault(); const title = draftTitle.trim(); if (!title) return; try { await onRename(book, title); setEditing(null); setMessage("Judul berhasil diubah."); } catch (error) { setMessage(error instanceof Error ? error.message : "Judul gagal diubah."); } }}><input maxLength={300} autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} aria-label="Judul baru" /><button>Simpan</button><button type="button" onClick={() => setEditing(null)}>Batal</button></form> : <h3>{book.title}</h3>}<span>{book.author}</span><div className="book-meta-row"><small><Headphones size={13} />{book.duration}</small><small>{book.generated ? "Audio siap" : `${book.progress}%`}</small></div><div className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></div>{!book.id.startsWith("demo-") && <div className="book-actions"><button onClick={() => { setEditing(book.id); setDraftTitle(book.title); }}><Pencil size={13} /> Ubah judul</button><button className="delete-book" onClick={async () => { if (!window.confirm(`Hapus “${book.title}” beserta audio lokalnya?`)) return; try { await onDelete(book); setMessage("Buku berhasil dihapus."); } catch (error) { setMessage(error instanceof Error ? error.message : "Buku gagal dihapus."); } }}><Trash2 size={13} /> Hapus</button></div>}</div>
           </article>
         ))}
       </div>
-      {!visibleBooks.length && <div className="empty-state"><BookOpen size={30} /><h3>Buku tidak ditemukan</h3><p>Coba kata kunci lain atau tambahkan buku baru.</p></div>}
+      {!visibleBooks.length && <div className="empty-state"><BookOpen size={30} /><h3>Buku tidak ditemukan</h3><p>{allBooks.length ? "Coba kata kunci atau filter lain." : "Perpustakaanmu masih kosong — buat audiobook pertamamu."}</p>{!allBooks.length && <button className="primary-button" onClick={() => onChange("studio")}>Buat audiobook</button>}</div>}
       {message && <p className="catalog-message">{message}</p>}
     </div>
   );
@@ -182,7 +191,6 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
       const wordCount = parsed.text.split(/\s+/).length;
       const minutes = Math.max(1, Math.ceil(wordCount / 155));
 
-      // 🔍 FITUR RESUME: cari buku yang sama berdasarkan sumber (URL/nama file)
       const sourceKey = mode === "file" && file ? file.name : url.trim();
       const existingBooks = await listLocalBooks();
       const existingAsset = existingBooks.find((item) => item.book.sourceName === sourceKey || item.book.sourceName === parsed.sourceName);
@@ -289,7 +297,7 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
             <label>Bahasa<select value={voice === "Qwen3-TTS (eksperimental)" ? "English" : "Bahasa Indonesia"} disabled><option>{voice === "Qwen3-TTS (eksperimental)" ? "English" : "Bahasa Indonesia"}</option></select></label>
             <label>Mode proses<select value={quality} onChange={(event) => setQuality(event.target.value)}><option>Cuplikan cepat</option><option>Bab awal</option><option>Buku penuh</option></select></label>
           </div>
-          <div className="estimate-row"><Clock3 size={17} /><span>Diproses di perangkat</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
+          <div className="estimate-row"><Clock3 size={17} /><span>Diproses {voice === "Qwen3-TTS (eksperimental)" ? "di worker privat" : "di perangkat"}</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
           {status === "working" && <div className="conversion-progress" aria-label={`Progres ${progress}%`}><span style={{ width: `${progress}%` }} /></div>}
           {status !== "idle" && <div className={`status-message ${status}`}>
             {status === "working" && <RefreshCw size={18} className="spin" />}
@@ -298,7 +306,7 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
             <span>{message}</span>
           </div>}
           <button className="generate-button" disabled={status === "working"} onClick={createAudiobook}><WandSparkles size={19} />{status === "working" ? "Menyiapkan buku…" : "Buat audiobook"}<ArrowRight size={18} /></button>
-          <p className="secure-note"><LockKeyhole size={14} />{voice === "Piper News ID" ? "Piper Bahasa Indonesia berjalan lokal. Teks tidak dikirim ke penyedia AI." : "Qwen memakai narator English (Ryan) melalui worker privat dengan kuota."}</p>
+          <p className="secure-note"><LockKeyhole size={14} />{voice === "Piper News ID" ? "Piper Bahasa Indonesia berjalan lokal. Teks tidak dikirim ke penyedia AI." : "Narator English (Ryan) melalui worker privat Oracle Cloud dengan kuota."}</p>
         </section>
         <aside className="studio-aside">
           <div className="how-card"><p className="eyebrow">CARA KERJA</p>{[[FileText, "Baca & susun", "Teks dibersihkan dan dibagi per bab."], [Sparkles, "Narasi natural", "Jeda, intonasi, dan ritme disesuaikan."], [FileAudio, "Siap didengar", "Putar langsung atau unduh per bab."]].map(([Icon, title, copy], index) => { const IconComponent = Icon as typeof FileText; return <div className="how-row" key={String(title)}><span><IconComponent size={18} /></span><div><small>0{index + 1}</small><h4>{String(title)}</h4><p>{String(copy)}</p></div></div>; })}</div>
@@ -312,25 +320,41 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
 export function ActivityView({ recent = [] }: { recent?: string[] }) {
   return (
     <div className="view activity-view">
-      <div className="page-title-row"><div><p className="eyebrow">RIWAYAT PROSES</p><h1>Aktivitas</h1><p>Pantau buku yang sedang dibuat dan riwayat konversimu.</p></div></div>
-      <section className="activity-summary">
-        <div><FileAudio size={20} /><span><strong>24</strong><small>Audiobook dibuat</small></span></div>
-        <div><Clock3 size={20} /><span><strong>98j</strong><small>Total durasi</small></span></div>
-        <div><CheckCircle2 size={20} /><span><strong>96%</strong><small>Proses berhasil</small></span></div>
-      </section>
-      <section className="activity-list">
-        <div className="activity-list-heading"><h3>Semua aktivitas</h3><button>30 hari terakhir <ChevronDown size={15} /></button></div>
-        {[...recent.map((title) => ({ title, detail: "Audio lokal selesai dibuat", time: "Baru saja", state: "Selesai" })), ...activities].map((item, index) => <article key={`${item.title}-${item.time}-${index}`}><span className={`activity-state ${item.state === "Diproses" ? "processing" : item.state === "Perlu dicek" ? "warning" : ""}`}>{item.state === "Diproses" ? <RefreshCw size={18} className="spin" /> : item.state === "Perlu dicek" ? <XCircle size={18} /> : <Check size={18} />}</span><div><h4>{item.title}</h4><p>{item.detail}</p></div><time>{item.time}</time><button aria-label="Opsi aktivitas"><MoreHorizontal size={18} /></button></article>)}
-      </section>
+      <div className="page-title-row"><div><p className="eyebrow">RIWAYAT PROSES</p><h1>Aktivitas</h1><p>Buku yang berhasil kamu proses tercatat di sini.</p></div></div>
+      {recent.length === 0 ? (
+        <div className="empty-state"><FileAudio size={30} /><h3>Belum ada aktivitas</h3><p>Audiobook yang kamu buat akan muncul di sini.</p></div>
+      ) : (
+        <section className="activity-list">
+          <div className="activity-list-heading"><h3>Semua aktivitas</h3></div>
+          {recent.map((title, index) => (
+            <article key={`${title}-${index}`}>
+              <span className="activity-state"><Check size={18} /></span>
+              <div><h4>{title}</h4><p>Audio selesai dibuat</p></div>
+              <time>Baru saja</time>
+            </article>
+          ))}
+        </section>
+      )}
     </div>
   );
 }
 
 export function SettingsView() {
-  const [autoDownload, setAutoDownload] = useState(false);
-  const [normalize, setNormalize] = useState(true);
-  const [notify, setNotify] = useState(true);
+  const [prefs, setPrefs] = useState({ autoDownload: false, normalize: true, notify: true });
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("apollonians-prefs");
+      if (raw) setPrefs((prev) => ({ ...prev, ...JSON.parse(raw) }));
+    } catch { /* abaikan */ }
+  }, []);
+  const update = (key: "autoDownload" | "normalize" | "notify", value: boolean) => {
+    setPrefs((prev) => {
+      const next = { ...prev, [key]: value };
+      try { localStorage.setItem("apollonians-prefs", JSON.stringify(next)); } catch { /* abaikan */ }
+      return next;
+    });
+  };
   const previewVoice = async () => {
     if (previewState === "playing") {
       document.querySelector<HTMLAudioElement>("#piper-preview")?.pause();
@@ -353,13 +377,11 @@ export function SettingsView() {
   };
   return (
     <div className="view settings-view">
-      <div className="page-title-row"><div><p className="eyebrow">PREFERENSI</p><h1>Pengaturan</h1><p>Atur pengalaman membaca dan privasimu.</p></div></div>
+      <div className="page-title-row"><div><p className="eyebrow">PREFERENSI</p><h1>Pengaturan</h1><p>Perubahan tersimpan otomatis di perangkat ini.</p></div></div>
       <div className="settings-layout">
-        <aside className="settings-menu"><button className="active"><Settings2 size={17} /> Audio & narasi</button><button><Download size={17} /> Unduhan</button><button><ShieldCheck size={17} /> Privasi & keamanan</button></aside>
         <section className="settings-panel">
           <div className="settings-section"><div className="settings-section-head"><div><h3>Piper Bahasa Indonesia</h3><p>Model open-source berjalan lokal. Unduhan pertama sekitar 63 MB.</p></div><button className="preview-button" onClick={previewVoice}>{previewState === "loading" ? <RefreshCw className="spin" size={16} /> : previewState === "playing" ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}{previewState === "playing" ? "Jeda" : "Dengar contoh"}</button></div>{previewState === "error" && <p className="inline-warning">Model gagal dimuat. Pastikan memakai Chrome/Edge terbaru dan koneksi internet tersedia saat unduhan pertama.</p>}<audio id="piper-preview" hidden /><div className="voice-options"><button className="active"><span className="voice-wave">▂▅▃▂</span><strong>News TTS ID</strong><small>Piper · ONNX lokal</small><CheckCircle2 size={17} /></button></div></div>
-          <div className="settings-section"><h3>Pemutaran & hasil</h3><ToggleRow title="Normalisasi volume" copy="Seimbangkan volume antar bab secara otomatis." enabled={normalize} onChange={setNormalize} /><ToggleRow title="Unduh otomatis" copy="Simpan audio baru untuk didengarkan offline." enabled={autoDownload} onChange={setAutoDownload} /><ToggleRow title="Notifikasi selesai" copy="Beri tahu ketika audiobook siap didengar." enabled={notify} onChange={setNotify} /></div>
-          <div className="settings-footer"><button className="dark-button">Simpan perubahan</button></div>
+          <div className="settings-section"><h3>Pemutaran & hasil</h3><ToggleRow title="Normalisasi volume" copy="Seimbangkan volume antar bab secara otomatis." enabled={prefs.normalize} onChange={(v) => update("normalize", v)} /><ToggleRow title="Unduh otomatis" copy="Simpan audio baru untuk didengarkan offline." enabled={prefs.autoDownload} onChange={(v) => update("autoDownload", v)} /><ToggleRow title="Notifikasi selesai" copy="Beri tahu ketika audiobook siap didengar." enabled={prefs.notify} onChange={(v) => update("notify", v)} /></div>
         </section>
       </div>
     </div>
