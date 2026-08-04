@@ -1,0 +1,13 @@
+[Unit]
+Description=Apollonians Edge TTS
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/tts
+ExecStart=/home/ubuntu/tts/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
