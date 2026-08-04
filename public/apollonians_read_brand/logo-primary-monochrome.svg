@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="280" viewBox="0 0 1100 280" fill="none">
+<rect width="1100" height="280" rx="28" fill="transparent"/>
+<g transform="translate(48 30) scale(.86)">
+<circle cx="128" cy="73" r="27" fill="#F5F0E6"/>
+<path d="M42 112C56 51 200 51 214 112" stroke="#1C211D" stroke-width="12" stroke-linecap="round"/>
+<path d="M38 162C69 139 99 138 128 163C157 138 187 139 218 162" stroke="#1C211D" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M48 195C70 177 91 212 128 192C165 172 184 210 208 192" stroke="#F5F0E6" stroke-width="10" stroke-linecap="round"/>
+</g>
+<text x="300" y="137" fill="#1C211D" font-family="Iowan Old Style, Baskerville, Georgia, serif" font-size="78" font-weight="400" letter-spacing="-1">apollonians</text>
+<text x="306" y="190" fill="#1C211D" font-family="Avenir Next, Segoe UI, Arial, sans-serif" font-size="25" font-weight="700" letter-spacing="15">READ</text>
+</svg>

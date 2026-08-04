@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apollonians Read — Brand Guidelines</title>
+<style>
+:root {
+  --forest: #1F2824;
+  --green: #2F6257;
+  --paper: #F5F0E6;
+  --surface: #FFFDF8;
+  --ink: #1C211D;
+  --muted: #70736D;
+  --line: #DED8CC;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Avenir Next","Segoe UI",Arial,sans-serif;line-height:1.55}
+header{padding:52px 7vw;background:var(--forest);color:var(--paper)}
+header img{width:min(720px,100%);height:auto}
+header p{max-width:720px;color:#ccd2cd}
+main{width:min(1120px,88vw);margin:0 auto;padding:56px 0 96px}
+h1,h2,h3{font-family:"Iowan Old Style",Baskerville,Georgia,serif;font-weight:400}
+h1{font-size:54px;line-height:1;margin:24px 0 12px}
+h2{font-size:34px;margin:54px 0 18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px}
+.logo-card{display:grid;place-items:center;min-height:240px}
+.logo-card img{max-width:100%;max-height:190px}
+.swatch{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.chip{height:110px}
+.swatch strong,.swatch code{display:block;padding:0 14px}
+.swatch strong{padding-top:12px}
+.swatch code{padding-bottom:14px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line)}
+th,td{padding:13px;text-align:left;border-bottom:1px solid var(--line)}
+.good{border-left:5px solid var(--green)}
+.bad{border-left:5px solid #D9754F}
+small,code{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo-primary-reversed.svg" alt="Apollonians Read">
+  <h1>Solar Listening Library</h1>
+  <p>Identitas yang menyatukan matahari Apollo, halaman buku, orbit headphone, dan gelombang narasi.</p>
+</header>
+<main>
+  <h2>Logo collection</h2>
+  <div class="grid">
+    <div class="card logo-card"><img src="logo-primary-horizontal.svg" alt=""></div>
+    <div class="card logo-card" style="background:#1F2824"><img src="logo-primary-reversed.svg" alt=""></div>
+    <div class="card logo-card"><img src="logo-stacked.svg" alt=""></div>
+    <div class="card logo-card"><img src="app-icon.svg" alt="" style="max-width:190px"></div>
+    <div class="card logo-card"><img src="social-avatar.svg" alt="" style="max-width:190px"></div>
+    <div class="card logo-card"><img src="logo-primary-monochrome.svg" alt=""></div>
+  </div>
+
+  <h2>Color system</h2>
+  <div class="grid"><div class="swatch"><div class="chip" style="background:#1F2824"></div><strong>Forest Night</strong><code>#1F2824</code></div>
+<div class="swatch"><div class="chip" style="background:#2F6257"></div><strong>Reader Green</strong><code>#2F6257</code></div>
+<div class="swatch"><div class="chip" style="background:#244B43"></div><strong>Forest Dark</strong><code>#244B43</code></div>
+<div class="swatch"><div class="chip" style="background:#F5F0E6"></div><strong>Paper</strong><code>#F5F0E6</code></div>
+<div class="swatch"><div class="chip" style="background:#ECE5D8"></div><strong>Paper Deep</strong><code>#ECE5D8</code></div>
+<div class="swatch"><div class="chip" style="background:#FFFDF8"></div><strong>Surface</strong><code>#FFFDF8</code></div>
+<div class="swatch"><div class="chip" style="background:#1C211D"></div><strong>Ink</strong><code>#1C211D</code></div>
+<div class="swatch"><div class="chip" style="background:#70736D"></div><strong>Muted</strong><code>#70736D</code></div>
+<div class="swatch"><div class="chip" style="background:#E8B95B"></div><strong>Apollo Gold</strong><code>#E8B95B</code></div>
+<div class="swatch"><div class="chip" style="background:#D9754F"></div><strong>Narrative Coral</strong><code>#D9754F</code></div>
+<div class="swatch"><div class="chip" style="background:#DED8CC"></div><strong>Line</strong><code>#DED8CC</code></div></div>
+
+  <h2>Typography</h2>
+  <div class="grid">
+    <div class="card"><h3 style="font-size:38px;margin:0">Cerita terdengar lebih dekat.</h3><small>Iowan Old Style / Baskerville / Georgia</small></div>
+    <div class="card"><p style="font-size:17px">Buku tetap tersimpan di perangkatmu. Pilih bab, buat audio, dan lanjutkan dari posisi terakhir.</p><small>Avenir Next / Segoe UI / Arial</small></div>
+  </div>
+
+  <h2>Usage</h2>
+  <div class="grid">
+    <div class="card good"><strong>Gunakan</strong><p>Ruang lega, warna kertas hangat, foto editorial, garis gelombang, dan pesan yang tenang.</p></div>
+    <div class="card bad"><strong>Hindari</strong><p>Neon AI, robot, ikon headphone generik sebagai logo, efek berlebihan, dan klaim hiperbolis.</p></div>
+  </div>
+</main>
+</body>
+</html>

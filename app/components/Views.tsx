@@ -387,8 +387,34 @@ export function SettingsView() {
       <div className="page-title-row"><div><p className="eyebrow">PREFERENSI</p><h1>Pengaturan</h1><p>Perubahan tersimpan otomatis di perangkat ini.</p></div></div>
       <div className="settings-layout">
         <section className="settings-panel">
-          <div className="settings-section"><div className="settings-section-head"><div><h3>Piper Bahasa Indonesia</h3><p>Model open-source berjalan lokal. Unduhan pertama sekitar 63 MB.</p></div><button className="preview-button" onClick={previewVoice}>{previewState === "loading" ? <RefreshCw className="spin" size={16} /> : previewState === "playing" ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}{previewState === "playing" ? "Jeda" : "Dengar contoh"}</button></div>{previewState === "error" && <p className="inline-warning">Model gagal dimuat. Pastikan memakai Chrome/Edge terbaru dan koneksi internet tersedia saat unduhan pertama.</p>}<audio id="piper-preview" hidden /><div className="voice-options"><button className="active"><span className="voice-wave">▂▅▃▂</span><strong>News TTS ID</strong><small>Piper · ONNX lokal</small><CheckCircle2 size={17} /></button></div></div>
-          <div className="settings-section"><h3>Pemutaran & hasil</h3><ToggleRow title="Normalisasi volume" copy="Seimbangkan volume antar bab secara otomatis." enabled={prefs.normalize} onChange={(v) => update("normalize", v)} /><ToggleRow title="Unduh otomatis" copy="Simpan audio baru untuk didengarkan offline." enabled={prefs.autoDownload} onChange={(v) => update("autoDownload", v)} /><ToggleRow title="Notifikasi selesai" copy="Beri tahu ketika audiobook siap didengar." enabled={prefs.notify} onChange={(v) => update("notify", v)} /></div>
+          <div className="settings-section">
+            <div className="settings-section-head">
+              <div>
+                <h3>Piper Bahasa Indonesia</h3>
+                <p>Model open-source berjalan lokal. Unduhan pertama sekitar 63 MB.</p>
+              </div>
+              <button className="preview-button" onClick={previewVoice}>
+                {previewState === "loading" ? <RefreshCw className="spin" size={16} /> : previewState === "playing" ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}
+                {previewState === "playing" ? "Jeda" : "Dengar contoh"}
+              </button>
+            </div>
+            {previewState === "error" && <p className="inline-warning">Model gagal dimuat. Pastikan memakai Chrome/Edge terbaru dan koneksi internet tersedia saat unduhan pertama.</p>}
+            <audio id="piper-preview" hidden />
+            <div className="voice-options">
+              <button className="active">
+                <span className="voice-wave">▂▅▃▂</span>
+                <strong>News TTS ID</strong>
+                <small>Piper · ONNX lokal</small>
+                <CheckCircle2 size={17} />
+              </button>
+            </div>
+          </div>
+          <div className="settings-section">
+            <h3>Pemutaran & hasil</h3>
+            <ToggleRow title="Normalisasi volume" copy="Seimbangkan volume antar bab secara otomatis." enabled={prefs.normalize} onChange={(v) => update("normalize", v)} />
+            <ToggleRow title="Unduh otomatis" copy="Simpan audio baru untuk didengarkan offline." enabled={prefs.autoDownload} onChange={(v) => update("autoDownload", v)} />
+            <ToggleRow title="Notifikasi selesai" copy="Beri tahu ketika audiobook siap didengar." enabled={prefs.notify} onChange={(v) => update("notify", v)} />
+          </div>
         </section>
       </div>
     </div>

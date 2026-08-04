@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="620" viewBox="0 0 620 620" fill="none">
+<rect width="620" height="620" rx="54" fill="#1F2824"/>
+<g transform="translate(182 48)">
+<circle cx="128" cy="73" r="27" fill="#E8B95B"/>
+<path d="M42 112C56 51 200 51 214 112" stroke="#F5F0E6" stroke-width="12" stroke-linecap="round"/>
+<path d="M38 162C69 139 99 138 128 163C157 138 187 139 218 162" stroke="#F5F0E6" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M48 195C70 177 91 212 128 192C165 172 184 210 208 192" stroke="#D9754F" stroke-width="10" stroke-linecap="round"/>
+</g>
+<text x="310" y="385" text-anchor="middle" fill="#F5F0E6" font-family="Iowan Old Style, Baskerville, Georgia, serif" font-size="70" font-weight="400" letter-spacing="-1">apollonians</text>
+<text x="310" y="438" text-anchor="middle" fill="#E8B95B" font-family="Avenir Next, Segoe UI, Arial, sans-serif" font-size="23" font-weight="700" letter-spacing="14">READ</text>
+<text x="310" y="510" text-anchor="middle" fill="#F5F0E6" opacity=".68" font-family="Avenir Next, Segoe UI, Arial, sans-serif" font-size="20" letter-spacing=".4">Buku apa pun, kini bisa kamu dengarkan.</text>
+</svg>
