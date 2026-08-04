@@ -22,5 +22,5 @@ periksa model card upstream sebelum penggunaan komersial atau redistribusi model
 
 Kode dan model Qwen3-TTS tersedia dari
 [`QwenLM/Qwen3-TTS`](https://github.com/QwenLM/Qwen3-TTS) dengan lisensi
-Apache-2.0. Model resmi saat ini tidak mencantumkan Bahasa Indonesia sebagai
-bahasa yang didukung; penggunaan teks Indonesia di aplikasi bersifat eksperimental.
+Apache-2.0. Integrasi aplikasi menggunakan Bahasa Inggris dan suara Ryan;
+Piper digunakan untuk Bahasa Indonesia.

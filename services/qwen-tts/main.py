@@ -41,7 +41,7 @@ class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1200)
     book_id: str | None = None
     language: str = "Auto"
-    speaker: Literal["Serena", "Vivian", "Ryan", "Aiden"] = "Serena"
+    speaker: Literal["Serena", "Vivian", "Ryan", "Aiden"] = "Ryan"
 
 
 def get_model() -> Qwen3TTSModel:

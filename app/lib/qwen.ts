@@ -29,7 +29,7 @@ export async function generateQwenAudio(
         Authorization: `Bearer ${data.session.access_token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text: chunks[index], book_id: bookId ?? null, language: "Auto", speaker: "Serena" }),
+      body: JSON.stringify({ text: chunks[index], book_id: bookId ?? null, language: "English", speaker: "Ryan" }),
     });
     if (!response.ok) {
       const problem = await response.json().catch(() => null) as { detail?: string } | null;

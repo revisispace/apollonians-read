@@ -134,7 +134,6 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [voice, setVoice] = useState("Piper News ID");
-  const [language, setLanguage] = useState("Bahasa Indonesia");
   const [quality, setQuality] = useState("Cuplikan cepat");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -254,7 +253,7 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
           <div className="step-heading second"><span>02</span><div><h3>Atur suara</h3><p>Sesuaikan karakter narasi dengan jenis bacaan.</p></div></div>
           <div className="setting-grid">
             <label>Mesin audio<select value={voice} onChange={(event) => setVoice(event.target.value)}><option>Piper News ID</option><option disabled={!qwenEnabled}>Qwen3-TTS (eksperimental)</option></select></label>
-            <label>Bahasa<select value={language} onChange={(event) => setLanguage(event.target.value)}><option>Bahasa Indonesia</option></select></label>
+            <label>Bahasa<select value={voice === "Qwen3-TTS (eksperimental)" ? "English" : "Bahasa Indonesia"} disabled><option>{voice === "Qwen3-TTS (eksperimental)" ? "English" : "Bahasa Indonesia"}</option></select></label>
             <label>Mode proses<select value={quality} onChange={(event) => setQuality(event.target.value)}><option>Cuplikan cepat</option><option>Bab awal</option><option>Buku penuh</option></select></label>
           </div>
           <div className="estimate-row"><Clock3 size={17} /><span>Diproses di perangkat</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
@@ -266,7 +265,7 @@ export function StudioView({ onCreated }: { onCreated: (book: Book) => void | Pr
             <span>{message}</span>
           </div>}
           <button className="generate-button" disabled={status === "working"} onClick={createAudiobook}><WandSparkles size={19} /> {status === "working" ? "Menyiapkan buku…" : "Buat audiobook"}<ArrowRight size={18} /></button>
-          <p className="secure-note"><LockKeyhole size={14} /> {voice === "Piper News ID" ? "Piper berjalan lokal. Teks tidak dikirim ke penyedia AI." : "Qwen mengirim potongan teks ke worker privat; token diverifikasi dan kuota dibatasi."}</p>
+          <p className="secure-note"><LockKeyhole size={14} /> {voice === "Piper News ID" ? "Piper Bahasa Indonesia berjalan lokal. Teks tidak dikirim ke penyedia AI." : "Qwen memakai narator English (Ryan) melalui worker privat dengan kuota."}</p>
         </section>
 
         <aside className="studio-aside">

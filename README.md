@@ -95,7 +95,7 @@ Tambahkan URL HTTPS tersebut sebagai GitHub Actions Variable:
 NEXT_PUBLIC_QWEN_TTS_ENDPOINT=https://qwen-worker.example.com
 ```
 
-Setelah website dideploy ulang, aktifkan Qwen dari panel Superadmin. Qwen3-TTS resmi belum mencantumkan Bahasa Indonesia dalam daftar bahasa yang didukung, sehingga pilihan ini diberi label **eksperimental**; Piper tetap menjadi pilihan utama Bahasa Indonesia.
+Setelah website dideploy ulang, aktifkan Qwen dari panel Superadmin. Integrasi Qwen menggunakan Bahasa Inggris dengan suara **Ryan**, sedangkan Piper tetap menjadi pilihan Bahasa Indonesia. Pilihan bahasa di Studio mengikuti mesin audio secara otomatis.
 
 ## Batasan penting
 
