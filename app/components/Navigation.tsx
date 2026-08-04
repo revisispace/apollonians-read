@@ -1,43 +1,43 @@
-import {
-  Activity,
-  BookOpen,
-  Headphones,
-  Home,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+"use client";
+
+import { Activity, BookOpen, Home, MoreHorizontal, Settings, ShieldCheck, WandSparkles } from "lucide-react";
 
 export type ViewId = "home" | "library" | "studio" | "activity" | "settings" | "admin";
 
-export const navItems: { id: ViewId; label: string; icon: typeof Home }[] = [
+type NavItem = { id: ViewId; label: string; icon: typeof Home };
+
+const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Beranda", icon: Home },
   { id: "library", label: "Perpustakaan", icon: BookOpen },
-  { id: "studio", label: "Buat audio", icon: Sparkles },
+  { id: "studio", label: "Buat audio", icon: WandSparkles },
   { id: "activity", label: "Aktivitas", icon: Activity },
   { id: "settings", label: "Pengaturan", icon: Settings },
-  { id: "admin", label: "Superadmin", icon: ShieldCheck },
 ];
 
-type NavigationProps = {
+export function Sidebar({ active, onChange, profileName, onAccount, isSuperadmin }: {
   active: ViewId;
   onChange: (view: ViewId) => void;
-};
-
-export function Sidebar({ active, onChange, profileName, onAccount, isSuperadmin }: NavigationProps & { profileName: string; onAccount: () => void; isSuperadmin: boolean }) {
+  profileName: string;
+  onAccount: () => void;
+  isSuperadmin: boolean;
+}) {
+  const initials = profileName.replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase() || "LO";
   return (
     <aside className="sidebar">
-      <button className="brand" onClick={() => onChange("home")} aria-label="Ke beranda">
-        <span className="brand-icon"><Headphones size={19} /></span>
-        <span><strong>apollonians</strong><small>read</small></span>
+      <button className="brand" onClick={() => onChange("home")} aria-label="Apollonians Read — kembali ke beranda">
+        <img className="brand-logo" src="apollonians_read_brand/logo-primary-reversed.svg" alt="Apollonians Read" />
       </button>
-      <nav className="side-nav" aria-label="Navigasi utama">
-        {navItems.filter(({ id }) => id !== "admin" || isSuperadmin).map(({ id, label, icon: Icon }) => (
-          <button key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}>
-            <Icon size={19} strokeWidth={1.8} />
-            <span>{label}</span>
+      <nav className="side-nav">
+        {NAV_ITEMS.map((item) => (
+          <button key={item.id} className={active === item.id ? "active" : ""} onClick={() => onChange(item.id)}>
+            <item.icon size={18} /> {item.label}
           </button>
         ))}
+        {isSuperadmin && (
+          <button className={active === "admin" ? "active" : ""} onClick={() => onChange("admin")}>
+            <ShieldCheck size={18} /> Superadmin
+          </button>
+        )}
       </nav>
       <div className="storage-card">
         <div className="storage-heading"><span>Penyimpanan</span><strong>Lokal</strong></div>
@@ -45,26 +45,31 @@ export function Sidebar({ active, onChange, profileName, onAccount, isSuperadmin
         <small>File tidak dikirim ke server</small>
       </div>
       <button className="profile-card" onClick={onAccount}>
-        <span className="avatar">{profileName.slice(0, 2).toUpperCase()}</span>
+        <span className="avatar">{initials}</span>
         <span><strong>{profileName}</strong><small>Gratis · open-source</small></span>
-        <span className="profile-more">•••</span>
+        <MoreHorizontal size={16} className="profile-more" />
       </button>
     </aside>
   );
 }
 
-export function MobileNav({ active, onChange, isSuperadmin }: NavigationProps & { isSuperadmin: boolean }) {
+export function MobileNav({ active, onChange, isSuperadmin }: {
+  active: ViewId;
+  onChange: (view: ViewId) => void;
+  isSuperadmin: boolean;
+}) {
   return (
-    <nav className="mobile-nav" aria-label="Navigasi mobile">
-      {navItems.filter(({ id }) => id !== "settings" && (id !== "admin" || isSuperadmin)).map(({ id, label, icon: Icon }) => (
-        <button key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}>
-          <Icon size={20} strokeWidth={1.8} />
-          <span>{label === "Perpustakaan" ? "Pustaka" : label === "Buat audio" ? "Buat" : label}</span>
+    <nav className="mobile-nav">
+      {NAV_ITEMS.map((item) => (
+        <button key={item.id} className={active === item.id ? "active" : ""} onClick={() => onChange(item.id)}>
+          <item.icon size={19} /> {item.label}
         </button>
       ))}
-      <button className={active === "settings" ? "active" : ""} onClick={() => onChange("settings")}>
-        <Settings size={20} strokeWidth={1.8} /><span>Setelan</span>
-      </button>
+      {isSuperadmin && (
+        <button className={active === "admin" ? "active" : ""} onClick={() => onChange("admin")}>
+          <ShieldCheck size={19} /> Admin
+        </button>
+      )}
     </nav>
   );
 }

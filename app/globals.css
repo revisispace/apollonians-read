@@ -677,3 +677,10 @@ h2 { font-size: 28px; }
 @media (prefers-reduced-motion: reduce) {
  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Logo brand asli di sidebar */
+.brand { padding: 0 6px; }
+.brand-logo { width: 176px; height: auto; display: block; }
+
+/* Ikon empty-state居中 (tengah rapi) */
+.empty-state svg { display: block; margin: 0 auto 14px; }
