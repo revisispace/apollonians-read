@@ -8,6 +8,27 @@ export const isQwenConfigured = Boolean(endpoint);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Gabungkan potongan kecil jadi segmen ±3000 karakter supaya part tidak kebanyakan
+const SEGMENT_LIMIT = 3000;
+
+function mergeIntoSegments(text: string, limit: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]*/g) ?? [text];
+  const segments: string[] = [];
+  let current = "";
+  for (const sentence of sentences) {
+    const piece = sentence.trim();
+    if (!piece) continue;
+    if (current && (current + " " + piece).length > limit) {
+      segments.push(current);
+      current = piece;
+    } else {
+      current = current ? `${current} ${piece}` : piece;
+    }
+  }
+  if (current) segments.push(current);
+  return segments;
+}
+
 async function getSessionToken(): Promise<string> {
   const supabase = getSupabase();
   const { data } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
@@ -17,7 +38,7 @@ async function getSessionToken(): Promise<string> {
 
 async function authedFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
   if (!endpoint) throw new Error("Worker Qwen belum dikonfigurasi oleh superadmin.");
-    return fetch(`${endpoint}${path}`, {
+  return fetch(`${endpoint}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -41,17 +62,18 @@ export async function generateQwenAudio(
   if (!endpoint) throw new Error("Worker Qwen belum dikonfigurasi oleh superadmin.");
   const token = await getSessionToken();
   const allChunks = textChunks(text);
-  const chunks = allChunks.slice(0, maximumChunks);
+  const selected = allChunks.slice(0, maximumChunks);
+  const segments = mergeIntoSegments(selected.join(" "), SEGMENT_LIMIT);
   const output: Blob[] = [];
 
-  for (let index = 0; index < chunks.length; index += 1) {
-    onProgress?.({ phase: "model", completed: index, total: chunks.length });
+  for (let index = 0; index < segments.length; index += 1) {
+    onProgress?.({ phase: "model", completed: index, total: segments.length });
 
     const start = await authedFetch(token, "/v1/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        text: chunks[index],
+        text: segments[index],
         book_id: bookId ?? null,
         language: "English",
         speaker: "Ryan",
@@ -72,8 +94,8 @@ export async function generateQwenAudio(
     const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`);
     if (!audioResponse.ok) throw await readError(audioResponse);
     output.push(await audioResponse.blob());
-    onProgress?.({ phase: "audio", completed: index + 1, total: chunks.length });
+    onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
   }
 
-  return { chunks: output, truncated: allChunks.length > chunks.length };
+  return { chunks: output, truncated: allChunks.length > selected.length };
 }
