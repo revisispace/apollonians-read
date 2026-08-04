@@ -57,6 +57,17 @@ export async function saveAudioChunks(id: string, audioChunks: Blob[]) {
   return asset;
 }
 
+export async function appendAudioChunk(id: string, chunk: Blob) {
+  const db = await database();
+  const asset = await db.get("books", id);
+  if (!asset) throw new Error("Buku lokal tidak ditemukan.");
+  asset.audioChunks.push(chunk);
+  asset.book.generated = true;
+  asset.updatedAt = new Date().toISOString();
+  await db.put("books", asset);
+  return asset;
+}
+
 export async function updateLocalBookTitle(id: string, title: string) {
   const db = await database();
   const asset = await db.get("books", id);

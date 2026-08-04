@@ -3,12 +3,8 @@ import { getSupabase } from "./supabase";
 import type { TtsProgress } from "./piper";
 
 const endpoint = process.env.NEXT_PUBLIC_QWEN_TTS_ENDPOINT?.trim().replace(/\/$/, "");
-
 export const isQwenConfigured = Boolean(endpoint);
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Gabungkan potongan kecil jadi segmen ±3000 karakter supaya part tidak kebanyakan
 const SEGMENT_LIMIT = 3000;
 
 function mergeIntoSegments(text: string, limit: number): string[] {
@@ -40,11 +36,7 @@ async function authedFetch(token: string, path: string, init?: RequestInit): Pro
   if (!endpoint) throw new Error("Worker Qwen belum dikonfigurasi oleh superadmin.");
   return fetch(`${endpoint}${path}`, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "ngrok-skip-browser-warning": "1",
-      ...(init?.headers ?? {}),
-    },
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "1", ...(init?.headers ?? {}) },
   });
 }
 
@@ -58,6 +50,8 @@ export async function generateQwenAudio(
   onProgress?: (progress: TtsProgress) => void,
   maximumChunks = 24,
   bookId?: string,
+  skipCount: number = 0,
+  onChunkComplete?: (chunk: Blob) => Promise<void> | void,
 ) {
   if (!endpoint) throw new Error("Worker Qwen belum dikonfigurasi oleh superadmin.");
   const token = await getSessionToken();
@@ -67,17 +61,18 @@ export async function generateQwenAudio(
   const output: Blob[] = [];
 
   for (let index = 0; index < segments.length; index += 1) {
+    // 🚀 FITUR RESUME: Kalau part ini sudah ada di local DB, lewati saja!
+    if (index < skipCount) {
+      onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
+      continue;
+    }
+
     onProgress?.({ phase: "model", completed: index, total: segments.length });
 
     const start = await authedFetch(token, "/v1/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: segments[index],
-        book_id: bookId ?? null,
-        language: "English",
-        speaker: "Ryan",
-      }),
+      body: JSON.stringify({ text: segments[index], book_id: bookId ?? null, language: "English", speaker: "Ryan" }),
     });
     if (!start.ok) throw await readError(start);
     const { job_id: jobId } = (await start.json()) as { job_id: string };
@@ -93,9 +88,16 @@ export async function generateQwenAudio(
 
     const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`);
     if (!audioResponse.ok) throw await readError(audioResponse);
-    output.push(await audioResponse.blob());
+    const blob = await audioResponse.blob();
+    output.push(blob);
+
+    // 💾 AUTO-SAVE: Setiap 1 part selesai, langsung simpan ke lokal
+    if (onChunkComplete) {
+      await onChunkComplete(blob);
+    }
+
     onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
   }
 
-  return { chunks: output, truncated: allChunks.length > selected.length };
+  return { chunks: output, truncated: allChunks.length > selected.length, totalSegments: segments.length };
 }
