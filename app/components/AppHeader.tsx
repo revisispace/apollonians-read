@@ -7,6 +7,7 @@ const titles: Record<ViewId, string> = {
   studio: "Studio audio",
   activity: "Aktivitas",
   settings: "Pengaturan",
+  admin: "Superadmin",
 };
 
 type AppHeaderProps = {

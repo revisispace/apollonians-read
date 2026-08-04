@@ -43,7 +43,7 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
         ) : auth.user ? (
           <div className="signed-in-card">
             <span>{auth.user.email?.slice(0, 2).toUpperCase()}</span>
-            <div><strong>{auth.user.email}</strong><p>Metadata buku dan progres dapat disinkronkan. File asli tetap privat di perangkat.</p></div>
+            <div><strong>{auth.user.email}</strong><p>{auth.isSuperadmin ? "Superadmin · akses monitoring aktif." : "Metadata buku dan progres dapat disinkronkan."} File asli tetap privat di perangkat.</p></div>
             <button onClick={async () => { await auth.signOut(); onClose(); }}><LogOut size={16} /> Keluar</button>
           </div>
         ) : (

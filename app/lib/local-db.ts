@@ -57,6 +57,16 @@ export async function saveAudioChunks(id: string, audioChunks: Blob[]) {
   return asset;
 }
 
+export async function updateLocalBookTitle(id: string, title: string) {
+  const db = await database();
+  const asset = await db.get("books", id);
+  if (!asset) return undefined;
+  asset.book.title = title;
+  asset.updatedAt = new Date().toISOString();
+  await db.put("books", asset);
+  return asset.book;
+}
+
 export async function removeLocalBook(id: string) {
   const db = await database();
   await db.delete("books", id);

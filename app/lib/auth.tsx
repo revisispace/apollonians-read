@@ -16,6 +16,8 @@ type AuthContextValue = {
   configured: boolean;
   loading: boolean;
   user: User | null;
+  role: "user" | "superadmin";
+  isSuperadmin: boolean;
   signIn: (email: string, password: string) => Promise<string>;
   signUp: (email: string, password: string) => Promise<string>;
   signOut: () => Promise<void>;
@@ -25,6 +27,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [roleState, setRoleState] = useState<{ userId: string; role: "user" | "superadmin" } | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
@@ -46,6 +49,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+    let active = true;
+    Promise.all([
+      supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+      supabase.rpc("touch_profile"),
+    ]).then(([profile]) => {
+      if (active) setRoleState({ userId: user.id, role: profile.data?.role === "superadmin" ? "superadmin" : "user" });
+    }).catch(() => {
+      if (active) setRoleState({ userId: user.id, role: "user" });
+    });
+    return () => { active = false; };
+  }, [user]);
+
+  const role = roleState && roleState.userId === user?.id ? roleState.role : "user";
 
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
@@ -77,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ configured: isSupabaseConfigured, loading, user, signIn, signUp, signOut }),
-    [loading, signIn, signOut, signUp, user],
+    () => ({ configured: isSupabaseConfigured, loading, user, role, isSuperadmin: role === "superadmin", signIn, signUp, signOut }),
+    [loading, role, signIn, signOut, signUp, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -56,3 +56,17 @@ export async function syncBookMetadata(book: Book) {
   });
   if (error) throw error;
 }
+
+export async function updateCloudBookTitle(id: string, title: string) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { error } = await supabase.from("books").update({ title, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteCloudBook(id: string) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { error } = await supabase.from("books").delete().eq("id", id);
+  if (error) throw error;
+}

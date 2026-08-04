@@ -4,10 +4,11 @@ import {
   Headphones,
   Home,
   Settings,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 
-export type ViewId = "home" | "library" | "studio" | "activity" | "settings";
+export type ViewId = "home" | "library" | "studio" | "activity" | "settings" | "admin";
 
 export const navItems: { id: ViewId; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Beranda", icon: Home },
@@ -15,6 +16,7 @@ export const navItems: { id: ViewId; label: string; icon: typeof Home }[] = [
   { id: "studio", label: "Buat audio", icon: Sparkles },
   { id: "activity", label: "Aktivitas", icon: Activity },
   { id: "settings", label: "Pengaturan", icon: Settings },
+  { id: "admin", label: "Superadmin", icon: ShieldCheck },
 ];
 
 type NavigationProps = {
@@ -22,7 +24,7 @@ type NavigationProps = {
   onChange: (view: ViewId) => void;
 };
 
-export function Sidebar({ active, onChange, profileName, onAccount }: NavigationProps & { profileName: string; onAccount: () => void }) {
+export function Sidebar({ active, onChange, profileName, onAccount, isSuperadmin }: NavigationProps & { profileName: string; onAccount: () => void; isSuperadmin: boolean }) {
   return (
     <aside className="sidebar">
       <button className="brand" onClick={() => onChange("home")} aria-label="Ke beranda">
@@ -30,7 +32,7 @@ export function Sidebar({ active, onChange, profileName, onAccount }: Navigation
         <span><strong>apollonians</strong><small>read</small></span>
       </button>
       <nav className="side-nav" aria-label="Navigasi utama">
-        {navItems.map(({ id, label, icon: Icon }) => (
+        {navItems.filter(({ id }) => id !== "admin" || isSuperadmin).map(({ id, label, icon: Icon }) => (
           <button key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}>
             <Icon size={19} strokeWidth={1.8} />
             <span>{label}</span>
@@ -51,10 +53,10 @@ export function Sidebar({ active, onChange, profileName, onAccount }: Navigation
   );
 }
 
-export function MobileNav({ active, onChange }: NavigationProps) {
+export function MobileNav({ active, onChange, isSuperadmin }: NavigationProps & { isSuperadmin: boolean }) {
   return (
     <nav className="mobile-nav" aria-label="Navigasi mobile">
-      {navItems.slice(0, 4).map(({ id, label, icon: Icon }) => (
+      {navItems.filter(({ id }) => id !== "settings" && (id !== "admin" || isSuperadmin)).map(({ id, label, icon: Icon }) => (
         <button key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}>
           <Icon size={20} strokeWidth={1.8} />
           <span>{label === "Perpustakaan" ? "Pustaka" : label === "Buat audio" ? "Buat" : label}</span>

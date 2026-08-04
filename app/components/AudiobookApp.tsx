@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { books, type Book } from "../lib/content";
 import { useAuth } from "../lib/auth";
-import { listCloudBooks, syncBookMetadata } from "../lib/cloud-library";
-import { listLocalBooks } from "../lib/local-db";
+import { deleteCloudBook, listCloudBooks, syncBookMetadata, updateCloudBookTitle } from "../lib/cloud-library";
+import { listLocalBooks, removeLocalBook, updateLocalBookTitle } from "../lib/local-db";
 import { AccountDialog } from "./AccountDialog";
 import { AppHeader } from "./AppHeader";
 import { AudioPlayer } from "./AudioPlayer";
 import { ActivityView, HomeView, LibraryView, SettingsView, StudioView } from "./Views";
 import { MobileNav, Sidebar, type ViewId } from "./Navigation";
+import { AdminView } from "./AdminView";
 
 export function AudiobookApp() {
   const [active, setActive] = useState<ViewId>("home");
@@ -48,22 +49,40 @@ export function AudiobookApp() {
     if (auth.user) await syncBookMetadata(book).catch(console.error);
   };
 
+  const renameBook = async (book: Book, title: string) => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle || cleanTitle.length > 300) throw new Error("Judul harus berisi 1–300 karakter.");
+    if (auth.user) await updateCloudBookTitle(book.id, cleanTitle);
+    await updateLocalBookTitle(book.id, cleanTitle);
+    const updated = { ...book, title: cleanTitle };
+    setPersonalBooks((current) => current.map((item) => item.id === book.id ? updated : item));
+    setSelectedBook((current) => current.id === book.id ? updated : current);
+  };
+
+  const deleteBook = async (book: Book) => {
+    if (auth.user) await deleteCloudBook(book.id);
+    await removeLocalBook(book.id);
+    setPersonalBooks((current) => current.filter((item) => item.id !== book.id));
+    setSelectedBook((current) => current.id === book.id ? (personalBooks.find((item) => item.id !== book.id) ?? books[0]) : current);
+  };
+
   return (
     <div className="app-shell">
-      <Sidebar active={active} onChange={setActive} profileName={auth.user?.email ?? "Mode lokal"} onAccount={() => setAccountOpen(true)} />
+      <Sidebar active={active} onChange={setActive} profileName={auth.user?.email ?? "Mode lokal"} onAccount={() => setAccountOpen(true)} isSuperadmin={auth.isSuperadmin} />
       <div className="app-column">
         <AppHeader active={active} query={query} onQuery={setQuery} onAccount={() => setAccountOpen(true)} accountLabel={auth.user?.email ?? "Lokal"} />
         <main>
           {active === "home" && <HomeView allBooks={allBooks} onChange={setActive} onSelect={selectBook} />}
-          {active === "library" && <LibraryView allBooks={allBooks} query={query} onChange={setActive} onSelect={selectBook} />}
+          {active === "library" && <LibraryView allBooks={allBooks} query={query} onChange={setActive} onSelect={selectBook} onRename={renameBook} onDelete={deleteBook} />}
           {active === "studio" && <StudioView onCreated={createdBook} />}
           {active === "activity" && <ActivityView recent={recentActivities} />}
           {active === "settings" && <SettingsView />}
+          {active === "admin" && auth.isSuperadmin && <AdminView />}
         </main>
         <AudioPlayer book={selectedBook} />
       </div>
       {activityBadge && active !== "activity" && <button className="activity-toast" onClick={() => { setActive("activity"); setActivityBadge(false); }}><span>1</span> Proses baru ditambahkan</button>}
-      <MobileNav active={active} onChange={setActive} />
+      <MobileNav active={active} onChange={setActive} isSuperadmin={auth.isSuperadmin} />
       <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} />
     </div>
   );
