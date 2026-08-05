@@ -100,7 +100,8 @@ button, input, select, textarea { min-width: 0; }
 /* Mobile shell: stable spacing, single-column content and a usable multi-row player. */
 @media (max-width: 760px) {
   body { padding-bottom: env(safe-area-inset-bottom); }
-  .app-column { padding-bottom: 184px; }
+  .app-shell, .app-column, main { width: 100%; max-width: 100%; }
+  .app-column { margin-left: 0; padding-bottom: 184px; }
   .app-header { height: 60px; padding-inline: max(14px, env(safe-area-inset-left)); }
   .view { padding: 24px 16px 42px; }
   .welcome-row, .page-title-row { gap: 14px; }
@@ -162,6 +163,11 @@ button, input, select, textarea { min-width: 0; }
     gap: 7px 12px;
     padding: 10px 12px;
   }
+  .audio-player.is-unavailable {
+    min-height: 74px;
+    grid-template-areas: "book center";
+  }
+  .audio-player.is-unavailable .player-tools { display: none; }
   .player-book { grid-area: book; }
   .player-center { grid-area: center; display: grid; min-width: 46px; }
   .player-controls { gap: 8px; }
