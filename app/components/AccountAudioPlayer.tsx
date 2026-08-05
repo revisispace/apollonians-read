@@ -44,12 +44,12 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     audio?.pause();
     urlsRef.current.forEach(URL.revokeObjectURL);
     urlsRef.current = [];
-    setBookmarks(readAudioBookmarks(userId, book.id));
-    setSelectedBookmark("");
 
     getLocalBook(book.id)
       .then((asset) => {
         if (!active) return;
+        setBookmarks(readAudioBookmarks(userId, book.id));
+        setSelectedBookmark("");
         setPlaying(false);
         setChunk(0);
         setElapsed(0);
