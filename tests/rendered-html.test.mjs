@@ -59,7 +59,7 @@ test("scopes IndexedDB, playback, preferences, and activity to the authenticated
   assert.match(app, /claimLegacyLocalBooks/);
   assert.match(app, /readAccountActivity\(userId\)/);
   assert.match(app, /<AccountAudioPlayer book=\{selectedBook\} userId=\{userId\}/);
-  assert.match(app, /<AccountSettingsView userId=\{userId\}/);
+  assert.match(app, /<AccountSettingsView key=\{userId\} userId=\{userId\}/);
   assert.match(player, /readPlaybackPosition\(userId, book\.id\)/);
   assert.match(player, /writePlaybackPosition\(userId, book\.id/);
   assert.match(settings, /readAccountPreferences\(userId\)/);
