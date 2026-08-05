@@ -21,6 +21,41 @@ button, input, select, textarea { min-width: 0; }
 .admin-settings-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .voice-options { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
 
+/* Account actions need a clear hierarchy and must never collapse into unstyled inline content. */
+.account-dialog > .dark-button,
+.account-dialog > .delete-book {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.account-dialog > .delete-book {
+  border: 1px solid #e2bdb4;
+  background: #fff6f3;
+  color: #934d3f;
+}
+.account-dialog > .delete-book:hover { background: #fbe9e4; border-color: #d9a99e; }
+.account-dialog > .delete-book:disabled,
+.account-dialog > .dark-button:disabled { opacity: .58; cursor: not-allowed; }
+.account-dialog .privacy-copy { margin-top: 14px; }
+
+/* Preview belongs to the voice field, not to the engine field. */
+.creator-card > .setting-grid + .setting-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+.creator-card > .setting-grid + .setting-grid .preview-button {
+  grid-column: 2;
+  width: 100%;
+  justify-content: center;
+}
+
 /* The player tools were previously hidden on tablets, making bookmarks, chapters and timer inaccessible. */
 .audio-player {
   grid-template-columns: minmax(190px, .9fr) minmax(300px, 1.35fr) minmax(260px, 1fr);
@@ -100,6 +135,8 @@ button, input, select, textarea { min-width: 0; }
   .url-panel { height: auto; min-height: 54px; padding-block: 10px; flex-wrap: wrap; }
   .url-panel input { flex: 1 1 190px; }
   .setting-grid { grid-template-columns: 1fr; }
+  .creator-card > .setting-grid + .setting-grid { grid-template-columns: 1fr; }
+  .creator-card > .setting-grid + .setting-grid .preview-button { grid-column: 1; }
   .estimate-row { align-items: flex-start; flex-wrap: wrap; }
   .estimate-row strong { width: 100%; margin-left: 0; }
 
