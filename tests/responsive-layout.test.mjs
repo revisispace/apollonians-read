@@ -29,7 +29,7 @@ test("keeps player navigation tools available on tablet and mobile", async () =>
   assert.match(css, /player-tools\s*\{[\s\S]*display:\s*flex/);
   assert.match(css, /grid-template-areas:\s*"book center"\s*"tools tools"/);
   assert.match(css, /bottom:\s*calc\(63px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.doesNotMatch(css, /player-tools\s*\{[^}]*display:\s*none/);
+  assert.match(css, /audio-player\.is-unavailable \.player-tools\s*\{\s*display:\s*none/);
 });
 
 test("resets the tablet sidebar offset before rendering the mobile shell", async () => {
