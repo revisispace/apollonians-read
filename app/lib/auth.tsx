@@ -97,7 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
-  const role = roleState?.userId === user?.id ? roleState.role : "user";
+  let role: UserRole = "user";
+  if (roleState !== null && user !== null && roleState.userId === user.id) {
+    role = roleState.role;
+  }
 
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
