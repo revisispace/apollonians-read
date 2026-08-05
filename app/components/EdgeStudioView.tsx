@@ -55,10 +55,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
   const [file, setFile] = useState<File | null>(null);
   const [engine, setEngine] = useState<Engine>("edge");
   const [voices, setVoices] = useState<EdgeVoice[]>([]);
-  const [voice, setVoice] = useState("id-ID-ArdiNeural");
-  const [rate, setRate] = useState(0);
-  const [pitch, setPitch] = useState(0);
-  const [volume, setVolume] = useState(0);
+  const [voice, setVoice] = useState("Ryan");
   const [quality, setQuality] = useState("Cuplikan cepat");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("Memeriksa layanan Edge TTS…");
@@ -88,8 +85,8 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
         const availableVoices = await listEdgeVoices();
         if (!active) return;
         setVoices(availableVoices);
-        const indonesian = availableVoices.find((item) => item.locale.startsWith("id-"));
-        if (indonesian) setVoice(indonesian.id);
+        const supportedDefault = availableVoices.find((item) => item.id === "Ryan") ?? availableVoices[0];
+        if (supportedDefault) setVoice(supportedDefault.id);
         setMessage("Edge TTS siap digunakan.");
       })
       .catch(() => {
@@ -131,7 +128,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
 
     setPreviewing(true);
     try {
-      const blob = await previewEdgeVoice({ voice, rate, pitch, volume });
+      const blob = await previewEdgeVoice({ voice });
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = URL.createObjectURL(blob);
       audio.src = previewUrlRef.current;
@@ -209,7 +206,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
       const result = engine === "edge"
         ? await generateEdgeAudio(
             parsed.text,
-            { voice, rate, pitch, volume },
+            { voice },
             reportProgress,
             maximumChunks,
             id,
@@ -273,7 +270,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
             </button>
           )}
 
-          <div className="step-heading second"><span>02</span><div><h3>Atur suara</h3><p>Pilih suara server natural atau fallback lokal.</p></div></div>
+          <div className="step-heading second"><span>02</span><div><h3>Atur suara</h3><p>Pilih suara yang benar-benar tersedia pada server saat ini.</p></div></div>
           <div className="setting-grid">
             <label>Mesin audio
               <select value={engine} onChange={(event) => setEngine(event.target.value as Engine)}>
@@ -293,14 +290,11 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
 
           {engine === "edge" && (
             <div className="setting-grid">
-              <label>Kecepatan ({rate > 0 ? "+" : ""}{rate}%)<input type="range" min="-40" max="60" value={rate} onChange={(event) => setRate(Number(event.target.value))} /></label>
-              <label>Pitch ({pitch > 0 ? "+" : ""}{pitch}Hz)<input type="range" min="-30" max="30" value={pitch} onChange={(event) => setPitch(Number(event.target.value))} /></label>
-              <label>Volume ({volume > 0 ? "+" : ""}{volume}%)<input type="range" min="-50" max="50" value={volume} onChange={(event) => setVolume(Number(event.target.value))} /></label>
-              <button className="preview-button" onClick={playPreview}><Play size={16} /> {previewing ? "Jeda preview" : `Preview ${selectedVoice?.name ?? "suara"}`}</button>
+              <button className="preview-button" onClick={playPreview}><Play size={16} /> {previewing ? "Jeda preview" : `Preview ${selectedVoice?.name ?? "Ryan"}`}</button>
             </div>
           )}
 
-          <div className="estimate-row"><Clock3 size={17} /><span>{engine === "edge" ? "Diproses di Oracle Free VM" : "Diproses di browser"}</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
+          <div className="estimate-row"><Clock3 size={17} /><span>{engine === "edge" ? "Diproses oleh server TTS yang sudah ada" : "Diproses di browser"}</span><strong>{quality === "Buku penuh" ? "Tergantung panjang buku" : quality === "Bab awal" ? "± 5–20 menit" : "± 1–5 menit"}</strong></div>
           {status === "working" && <div className="conversion-progress" aria-label={`Progres ${progress}%`}><span style={{ width: `${progress}%` }} /></div>}
           <div className={`status-message ${status}`}>
             {status === "working" && <RefreshCw size={18} className="spin" />}
@@ -317,7 +311,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
           )}
 
           <button className="generate-button" disabled={status === "working"} onClick={createAudiobook}><WandSparkles size={19} /> {status === "working" ? "Menyiapkan buku…" : "Buat audiobook"} <ArrowRight size={18} /></button>
-          <p className="secure-note"><LockKeyhole size={14} /> {engine === "edge" ? "Permintaan wajib login dan dikirim melalui server Apollonians Read." : "Piper berjalan lokal; teks tidak dikirim ke server TTS."}</p>
+          <p className="secure-note"><LockKeyhole size={14} /> {engine === "edge" ? "Permintaan wajib login dan memakai kontrak server yang sudah berjalan." : "Piper berjalan lokal; teks tidak dikirim ke server TTS."}</p>
         </section>
 
         <aside className="studio-aside">
@@ -325,7 +319,7 @@ export function EdgeStudioView({ onCreated }: { onCreated: (book: Book) => void 
             <p className="eyebrow">CARA KERJA</p>
             {[
               [FileText, "Baca & susun", "Teks dibersihkan dan dibagi menjadi bagian aman."],
-              [Sparkles, "Narasi natural", "Edge TTS memakai suara Microsoft Edge online."],
+              [Sparkles, "Narasi natural", "Server menghasilkan audio dengan suara yang tersedia."],
               [FileAudio, "Simpan lokal", "Setiap bagian selesai langsung masuk IndexedDB akun."],
             ].map(([Icon, title, copy], index) => {
               const IconComponent = Icon as typeof FileText;
