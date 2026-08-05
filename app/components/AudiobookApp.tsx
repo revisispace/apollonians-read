@@ -6,12 +6,14 @@ import { useAuth } from "../lib/auth";
 import { deleteCloudBook, listCloudBooks, syncBookMetadata, updateCloudBookTitle } from "../lib/cloud-library";
 import { mergeBookMetadata, normalizeBookMetadata } from "../lib/book-metadata";
 import {
+  appendAudioChunk,
   claimLegacyLocalBooks,
   hasLegacyLocalBooks,
   listLocalBooks,
   removeLocalBook,
   updateLocalBookTitle,
 } from "../lib/local-db";
+import { recoverActiveEdgeJobs } from "../lib/edge-tts";
 import { readAccountActivity, writeAccountActivity } from "../lib/account-storage";
 import { AccountDialog } from "./AccountDialog";
 import { AppHeader } from "./AppHeader";
@@ -43,6 +45,13 @@ export function AudiobookApp() {
         if (await hasLegacyLocalBooks()) {
           const claimed = await claimLegacyLocalBooks();
           if (claimed > 0 && activeRequest) setStorageMessage(`${claimed} buku lokal lama dipindahkan ke akun ini.`);
+        }
+
+        const recovery = await recoverActiveEdgeJobs(userId, (job, chunk) => appendAudioChunk(job.bookId, chunk));
+        if (recovery.recovered > 0 && activeRequest) {
+          setStorageMessage(`${recovery.recovered} bagian audio dari proses sebelumnya berhasil dipulihkan.`);
+        } else if (recovery.pending > 0 && activeRequest) {
+          setStorageMessage(`${recovery.pending} proses audio sebelumnya masih berjalan dan akan diperiksa lagi.`);
         }
 
         const localAssets = await listLocalBooks();
