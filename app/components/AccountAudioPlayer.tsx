@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bookmark, Moon, Pause, Play, RotateCcw, RotateCw, Trash2 } from "lucide-react";
+import { Bookmark, BookOpenText, Moon, Pause, Play, RotateCcw, RotateCw, Trash2 } from "lucide-react";
 import type { Book } from "../lib/content";
+import { detectChapters, type DetectedChapter } from "../lib/chapters";
 import { getLocalBook } from "../lib/local-db";
 import {
   readAudioBookmarks,
@@ -37,6 +38,8 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [bookmarks, setBookmarks] = useState<AudioBookmark[]>([]);
   const [selectedBookmark, setSelectedBookmark] = useState("");
+  const [chapters, setChapters] = useState<DetectedChapter[]>([]);
+  const [selectedChapter, setSelectedChapter] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -50,6 +53,8 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
         if (!active) return;
         setBookmarks(readAudioBookmarks(userId, book.id));
         setSelectedBookmark("");
+        setChapters(asset?.text ? detectChapters(asset.text) : []);
+        setSelectedChapter("");
         setPlaying(false);
         setChunk(0);
         setElapsed(0);
@@ -134,6 +139,16 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     audio.currentTime = Math.max(0, Math.min(audio.duration || 0, audio.currentTime + seconds));
   };
 
+  const moveToChunk = (target: number, currentTime = 0) => {
+    const audio = audioRef.current;
+    if (!audio || target < 0 || target >= urlsRef.current.length) return;
+    setChunk(target);
+    audio.src = urlsRef.current[target];
+    audio.currentTime = currentTime;
+    audio.playbackRate = speed;
+    setElapsed(currentTime);
+  };
+
   const nextChunk = () => {
     if (sleepMode === "end") {
       setSleepMode("off");
@@ -142,16 +157,13 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     }
 
     const next = chunk + 1;
-    const audio = audioRef.current;
-    if (!audio || next >= urlsRef.current.length) {
+    if (next >= urlsRef.current.length) {
       setPlaying(false);
       return;
     }
 
-    setChunk(next);
-    audio.src = urlsRef.current[next];
-    audio.playbackRate = speed;
-    audio.play().catch(() => setPlaying(false));
+    moveToChunk(next);
+    audioRef.current?.play().catch(() => setPlaying(false));
   };
 
   const cycleSpeed = () => {
@@ -185,13 +197,8 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
   const jumpToBookmark = (bookmarkId: string) => {
     setSelectedBookmark(bookmarkId);
     const bookmark = bookmarks.find((item) => item.id === bookmarkId);
-    const audio = audioRef.current;
-    if (!bookmark || !audio || bookmark.chunk >= urlsRef.current.length) return;
-    setChunk(bookmark.chunk);
-    audio.src = urlsRef.current[bookmark.chunk];
-    audio.currentTime = bookmark.currentTime;
-    audio.playbackRate = speed;
-    setElapsed(bookmark.currentTime);
+    if (!bookmark) return;
+    moveToChunk(bookmark.chunk, bookmark.currentTime);
     setMessage(`Berpindah ke ${bookmark.label}`);
   };
 
@@ -202,6 +209,15 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     setSelectedBookmark("");
     writeAudioBookmarks(userId, book.id, updated);
     setMessage("Bookmark dihapus");
+  };
+
+  const jumpToChapter = (chapterId: string) => {
+    setSelectedChapter(chapterId);
+    const chapter = chapters.find((item) => item.id === chapterId);
+    if (!chapter || !chunks) return;
+    const target = Math.min(chunks - 1, Math.max(0, Math.floor(chapter.progress * chunks)));
+    moveToChunk(target);
+    setMessage(`Berpindah ke ${chapter.title}`);
   };
 
   return (
@@ -240,6 +256,13 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
       </div>
       <div className="player-tools">
         <button className="speed-button" onClick={cycleSpeed}>{speed}×</button>
+        <label className="sleep-button">
+          <BookOpenText size={15} />
+          <select value={selectedChapter} onChange={(event) => jumpToChapter(event.target.value)} aria-label="Daftar bab">
+            <option value="">{chapters.length ? `${chapters.length} bab` : "Bab tidak terdeteksi"}</option>
+            {chapters.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+          </select>
+        </label>
         <button className="speed-button" disabled={!chunks} onClick={addBookmark} aria-label="Simpan bookmark"><Bookmark size={15} /></button>
         <label className="sleep-button">
           <Bookmark size={15} />
