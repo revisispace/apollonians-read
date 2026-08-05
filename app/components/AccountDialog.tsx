@@ -1,18 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Database, LogOut, ShieldCheck, X } from "lucide-react";
+import { Database, LogOut, ShieldCheck, Trash2, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { clearAccountLocalStorage } from "../lib/account-storage";
+import { clearCurrentUserLocalBooks } from "../lib/local-db";
 
-export function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AccountDialog({
+  open,
+  onClose,
+  onLocalDataCleared,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onLocalDataCleared: () => void;
+}) {
   const auth = useAuth();
   const [message, setMessage] = useState("");
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState<"idle" | "signout" | "clear">("idle");
 
   if (!open || !auth.user) return null;
 
   const signOut = async () => {
-    setWorking(true);
+    setWorking("signout");
     setMessage("");
 
     try {
@@ -20,7 +30,31 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal keluar dari akun.");
-      setWorking(false);
+      setWorking("idle");
+    }
+  };
+
+  const clearLocalDataAndSignOut = async () => {
+    const confirmed = window.confirm(
+      "Hapus seluruh buku, audio, posisi pemutaran, aktivitas, dan preferensi akun ini dari perangkat? Data cloud tidak ikut dihapus.",
+    );
+    if (!confirmed) return;
+
+    setWorking("clear");
+    setMessage("");
+
+    try {
+      const userId = auth.user?.id;
+      if (!userId) throw new Error("Sesi akun tidak ditemukan.");
+
+      await clearCurrentUserLocalBooks();
+      clearAccountLocalStorage(userId);
+      onLocalDataCleared();
+      await auth.signOut();
+      onClose();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Data perangkat gagal dihapus.");
+      setWorking("idle");
     }
   };
 
@@ -49,7 +83,7 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
             <p>
               {auth.isSuperadmin
                 ? "Superadmin · akses monitoring dan pengendalian konsumsi aktif."
-                : "Akun aktif · metadata buku dan progres dapat disinkronkan."}
+                : "Akun aktif · data lokal dipisahkan dari akun lain pada perangkat ini."}
               {" "}File asli dan audio tetap privat di perangkat.
             </p>
           </div>
@@ -58,19 +92,23 @@ export function AccountDialog({ open, onClose }: { open: boolean; onClose: () =>
         <div className="config-notice">
           <ShieldCheck size={20} />
           <div>
-            <strong>Login wajib aktif</strong>
-            <p>Dashboard, Studio Audio, Piper, dan Edge TTS hanya dapat digunakan selama sesi akun aktif.</p>
+            <strong>Pemisahan data per akun aktif</strong>
+            <p>Buku, audio, progres, aktivitas, dan preferensi hanya dapat dibaca oleh akun yang sedang login.</p>
           </div>
         </div>
 
         {message && <p className="auth-message">{message}</p>}
 
-        <button className="dark-button" disabled={working} onClick={signOut}>
-          <LogOut size={16} /> {working ? "Keluar…" : "Keluar dari akun"}
+        <button className="dark-button" disabled={working !== "idle"} onClick={signOut}>
+          <LogOut size={16} /> {working === "signout" ? "Keluar…" : "Keluar dari akun"}
+        </button>
+
+        <button className="delete-book" disabled={working !== "idle"} onClick={clearLocalDataAndSignOut}>
+          <Trash2 size={16} /> {working === "clear" ? "Menghapus data…" : "Keluar dan hapus data perangkat"}
         </button>
 
         <p className="privacy-copy">
-          Keluar tidak menghapus buku atau audio pada perangkat ini. Pemisahan data lokal per akun akan diterapkan pada Step 2.
+          Keluar biasa tidak menghapus data akun ini. Opsi hapus data hanya membersihkan penyimpanan lokal akun aktif dan tidak menghapus metadata cloud.
         </p>
       </section>
     </div>
