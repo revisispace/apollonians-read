@@ -1,6 +1,13 @@
 import { textChunks } from "./document-parser";
 import type { TtsProgress } from "./piper";
 import { getSupabase } from "./supabase";
+import {
+  clearActiveEdgeJob,
+  listActiveEdgeJobs,
+  readActiveEdgeJob,
+  writeActiveEdgeJob,
+  type ActiveEdgeJob,
+} from "./account-storage";
 
 const endpoint = process.env.NEXT_PUBLIC_QWEN_TTS_ENDPOINT?.trim().replace(/\/$/, "");
 export const edgeTtsEndpoint = endpoint ?? "";
@@ -10,6 +17,7 @@ const SEGMENT_LIMIT = 3000;
 const POLL_INTERVAL_MS = 3000;
 const REQUEST_TIMEOUT_MS = 30_000;
 const JOB_TIMEOUT_MS = 5 * 60_000;
+const ACTIVE_JOB_TTL_MS = 30 * 60_000;
 const TRANSIENT_RETRIES = 2;
 
 export type EdgeVoice = {
@@ -30,6 +38,18 @@ export type EdgeVoiceOptions = {
 type EdgeJobStatus = {
   status: "queued" | "processing" | "done" | "failed";
   error?: string | null;
+};
+
+type SessionIdentity = {
+  token: string;
+  userId: string;
+};
+
+type SegmentResult = {
+  blob: Blob;
+  jobId: string;
+  userId: string;
+  recovered: boolean;
 };
 
 const existingOracleVoices: EdgeVoice[] = [
@@ -66,12 +86,12 @@ function mergeIntoSegments(text: string, limit = SEGMENT_LIMIT) {
   return segments;
 }
 
-async function getSessionToken() {
+async function getSessionIdentity(): Promise<SessionIdentity> {
   const supabase = getSupabase();
   const { data, error } = (await supabase?.auth.getSession()) ?? { data: { session: null }, error: null };
   if (error) throw error;
   if (!data.session) throw new Error("Masuk ke akun untuk menggunakan Edge TTS.");
-  return data.session.access_token;
+  return { token: data.session.access_token, userId: data.session.user.id };
 }
 
 async function readError(response: Response) {
@@ -138,9 +158,87 @@ export async function listEdgeVoices() {
   return existingOracleVoices;
 }
 
-async function generateOneSegment(text: string, voice: string, bookId?: string) {
-  const token = await getSessionToken();
-  const startResponse = await authedFetch(token, "/v1/tts", {
+export async function recoverActiveEdgeJobs(
+  userId: string,
+  onRecovered: (job: ActiveEdgeJob, chunk: Blob) => Promise<unknown> | unknown,
+) {
+  const jobs = listActiveEdgeJobs(userId);
+  if (!jobs.length) return { checked: 0, recovered: 0, pending: 0, cleared: 0 };
+
+  const identity = await getSessionIdentity();
+  if (identity.userId !== userId) return { checked: 0, recovered: 0, pending: 0, cleared: 0 };
+
+  let recovered = 0;
+  let pending = 0;
+  let cleared = 0;
+
+  for (const job of jobs) {
+    if (Date.now() - job.createdAt > ACTIVE_JOB_TTL_MS) {
+      clearActiveEdgeJob(userId, job.bookId, job.jobId);
+      cleared += 1;
+      continue;
+    }
+
+    try {
+      const response = await authedFetch(identity.token, `/v1/tts/${job.jobId}/status`, undefined, TRANSIENT_RETRIES);
+      const status = await response.json() as EdgeJobStatus;
+      if (status.status === "failed") {
+        clearActiveEdgeJob(userId, job.bookId, job.jobId);
+        cleared += 1;
+        continue;
+      }
+      if (status.status !== "done") {
+        pending += 1;
+        continue;
+      }
+
+      const audioResponse = await authedFetch(identity.token, `/v1/tts/${job.jobId}/audio`, undefined, TRANSIENT_RETRIES);
+      const chunk = await audioResponse.blob();
+      await onRecovered(job, chunk);
+      clearActiveEdgeJob(userId, job.bookId, job.jobId);
+      recovered += 1;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("404")) {
+        clearActiveEdgeJob(userId, job.bookId, job.jobId);
+        cleared += 1;
+      } else {
+        pending += 1;
+      }
+    }
+  }
+
+  return { checked: jobs.length, recovered, pending, cleared };
+}
+
+function matchingRecoverableJob(
+  userId: string,
+  bookId: string,
+  segmentIndex: number,
+  totalSegments: number,
+  voice: string,
+) {
+  const existing = readActiveEdgeJob(userId, bookId);
+  if (!existing) return null;
+  const expired = Date.now() - existing.createdAt > ACTIVE_JOB_TTL_MS;
+  const matches = existing.segmentIndex === segmentIndex
+    && existing.totalSegments === totalSegments
+    && existing.voice === voice;
+  if (expired || !matches) {
+    clearActiveEdgeJob(userId, bookId, existing.jobId);
+    return null;
+  }
+  return existing;
+}
+
+async function createJob(
+  identity: SessionIdentity,
+  text: string,
+  voice: string,
+  bookId?: string,
+  segmentIndex = 0,
+  totalSegments = 1,
+) {
+  const startResponse = await authedFetch(identity.token, "/v1/tts", {
     method: "POST",
     body: JSON.stringify({
       text,
@@ -152,23 +250,62 @@ async function generateOneSegment(text: string, voice: string, bookId?: string) 
   const { job_id: jobId } = await startResponse.json() as { job_id: string };
   if (!jobId) throw new Error("Server Edge TTS tidak mengembalikan ID pekerjaan.");
 
+  if (bookId) {
+    writeActiveEdgeJob(identity.userId, {
+      jobId,
+      bookId,
+      segmentIndex,
+      totalSegments,
+      voice,
+      createdAt: Date.now(),
+    });
+  }
+  return jobId;
+}
+
+async function waitForJob(token: string, job: ActiveEdgeJob | { jobId: string; createdAt: number }) {
   const deadline = Date.now() + JOB_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    const statusResponse = await authedFetch(token, `/v1/tts/${jobId}/status`, undefined, TRANSIENT_RETRIES);
+    const statusResponse = await authedFetch(token, `/v1/tts/${job.jobId}/status`, undefined, TRANSIENT_RETRIES);
     const status = await statusResponse.json() as EdgeJobStatus;
     if (status.status === "failed") throw new Error(status.error ?? "Edge TTS gagal membuat audio.");
     if (status.status === "done") {
-      const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`, undefined, TRANSIENT_RETRIES);
+      const audioResponse = await authedFetch(token, `/v1/tts/${job.jobId}/audio`, undefined, TRANSIENT_RETRIES);
       return audioResponse.blob();
     }
   }
 
-  throw new Error("Pembuatan satu bagian audio melewati batas 5 menit. Jalankan lagi untuk melanjutkan dari bagian terakhir yang tersimpan.");
+  throw new Error("Pembuatan satu bagian audio melewati batas 5 menit. Job aktif disimpan dan proses dapat dilanjutkan dari bagian terakhir yang tersimpan.");
+}
+
+async function generateOneSegment(
+  text: string,
+  voice: string,
+  bookId?: string,
+  segmentIndex = 0,
+  totalSegments = 1,
+): Promise<SegmentResult> {
+  const identity = await getSessionIdentity();
+  const recoverable = bookId
+    ? matchingRecoverableJob(identity.userId, bookId, segmentIndex, totalSegments, voice)
+    : null;
+  const jobId = recoverable?.jobId ?? await createJob(identity, text, voice, bookId, segmentIndex, totalSegments);
+
+  try {
+    const blob = await waitForJob(identity.token, { jobId, createdAt: recoverable?.createdAt ?? Date.now() });
+    return { blob, jobId, userId: identity.userId, recovered: Boolean(recoverable) };
+  } catch (error) {
+    if (bookId && error instanceof Error && !error.message.includes("Job aktif disimpan")) {
+      clearActiveEdgeJob(identity.userId, bookId, jobId);
+    }
+    throw error;
+  }
 }
 
 export async function previewEdgeVoice(options: EdgeVoiceOptions) {
-  return generateOneSegment("Halo, ini contoh suara narator Apollonians Read.", options.voice);
+  const result = await generateOneSegment("Halo, ini contoh suara narator Apollonians Read.", options.voice);
+  return result.blob;
 }
 
 export async function generateEdgeAudio(
@@ -179,12 +316,14 @@ export async function generateEdgeAudio(
   bookId?: string,
   skipCount = 0,
   onChunkComplete?: (chunk: Blob) => Promise<unknown> | unknown,
+  onRecovery?: (segmentIndex: number, totalSegments: number) => void,
 ) {
   const sourceChunks = textChunks(text);
   const selectedChunks = sourceChunks.slice(0, maximumChunks);
   const segments = mergeIntoSegments(selectedChunks.join(" "));
   const completedSegments = Math.min(Math.max(0, Math.floor(skipCount)), segments.length);
   const output: Blob[] = [];
+  let recoveredJobs = 0;
 
   if (completedSegments > 0) {
     onProgress?.({ phase: "audio", completed: completedSegments, total: segments.length });
@@ -192,9 +331,14 @@ export async function generateEdgeAudio(
 
   for (let index = completedSegments; index < segments.length; index += 1) {
     onProgress?.({ phase: "model", completed: index, total: segments.length });
-    const blob = await generateOneSegment(segments[index], options.voice, bookId);
-    output.push(blob);
-    await onChunkComplete?.(blob);
+    const result = await generateOneSegment(segments[index], options.voice, bookId, index, segments.length);
+    if (result.recovered) {
+      recoveredJobs += 1;
+      onRecovery?.(index, segments.length);
+    }
+    output.push(result.blob);
+    await onChunkComplete?.(result.blob);
+    if (bookId) clearActiveEdgeJob(result.userId, bookId, result.jobId);
     onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
   }
 
@@ -203,5 +347,6 @@ export async function generateEdgeAudio(
     truncated: sourceChunks.length > selectedChunks.length,
     totalSegments: segments.length,
     resumedFrom: completedSegments,
+    recoveredJobs,
   };
 }

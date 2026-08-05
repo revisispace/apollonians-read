@@ -12,6 +12,15 @@ export type AudioBookmark = {
   createdAt: number;
 };
 
+export type ActiveEdgeJob = {
+  jobId: string;
+  bookId: string;
+  segmentIndex: number;
+  totalSegments: number;
+  voice: string;
+  createdAt: number;
+};
+
 export type AccountPreferences = {
   autoDownload: boolean;
   normalize: boolean;
@@ -34,6 +43,10 @@ export function playbackPositionKey(userId: string, bookId: string) {
 
 export function bookmarksKey(userId: string, bookId: string) {
   return `${accountPrefix(userId)}-bookmarks-${bookId}`;
+}
+
+export function activeEdgeJobKey(userId: string, bookId: string) {
+  return `${accountPrefix(userId)}-edge-job-${bookId}`;
 }
 
 export function preferencesKey(userId: string) {
@@ -80,6 +93,55 @@ export function writeAudioBookmarks(userId: string, bookId: string, bookmarks: A
   } catch {
     // Bookmarks remain available in memory when storage is unavailable.
   }
+}
+
+export function readActiveEdgeJob(userId: string, bookId: string) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const value = localStorage.getItem(activeEdgeJobKey(userId, bookId));
+    if (!value) return null;
+    const job = JSON.parse(value) as ActiveEdgeJob;
+    if (!job.jobId || job.bookId !== bookId || !Number.isInteger(job.segmentIndex) || !Number.isFinite(job.createdAt)) {
+      localStorage.removeItem(activeEdgeJobKey(userId, bookId));
+      return null;
+    }
+    return job;
+  } catch {
+    return null;
+  }
+}
+
+export function listActiveEdgeJobs(userId: string) {
+  if (typeof window === "undefined") return [];
+  const keyPrefix = `${accountPrefix(userId)}-edge-job-`;
+  const jobs: ActiveEdgeJob[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(keyPrefix)) continue;
+    const bookId = key.slice(keyPrefix.length);
+    const job = readActiveEdgeJob(userId, bookId);
+    if (job) jobs.push(job);
+  }
+  return jobs;
+}
+
+export function writeActiveEdgeJob(userId: string, job: ActiveEdgeJob) {
+  try {
+    localStorage.setItem(activeEdgeJobKey(userId, job.bookId), JSON.stringify(job));
+  } catch {
+    // Active jobs remain recoverable only while the current page stays open.
+  }
+}
+
+export function clearActiveEdgeJob(userId: string, bookId: string, expectedJobId?: string) {
+  if (typeof window === "undefined") return;
+  const key = activeEdgeJobKey(userId, bookId);
+  if (expectedJobId) {
+    const current = readActiveEdgeJob(userId, bookId);
+    if (current?.jobId !== expectedJobId) return;
+  }
+  localStorage.removeItem(key);
 }
 
 export function readAccountPreferences(userId: string) {

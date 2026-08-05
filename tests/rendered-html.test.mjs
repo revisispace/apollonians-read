@@ -90,8 +90,8 @@ test("shows Edge TTS while preserving the existing Oracle and Supabase contracts
   assert.match(client, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
   assert.match(client, /\/health/);
   assert.match(client, /\/v1\/tts/);
-  assert.match(client, /\/v1\/tts\/\$\{jobId\}\/status/);
-  assert.match(client, /\/v1\/tts\/\$\{jobId\}\/audio/);
+  assert.match(client, /\/v1\/tts\/\$\{(?:jobId|job\.jobId)\}\/status/);
+  assert.match(client, /\/v1\/tts\/\$\{(?:jobId|job\.jobId)\}\/audio/);
   assert.match(client, /Authorization: `Bearer \$\{token\}`/);
   assert.match(client, /speaker: voice/);
   assert.match(client, /id: "Ryan"/);
