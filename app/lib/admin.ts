@@ -13,14 +13,14 @@ export type ProfileRow = {
 export type UsageRow = {
   id: number;
   user_id: string;
-  engine: "piper" | "edge";
+  engine: "piper" | "qwen";
   characters: number;
   status: "reserved" | "completed" | "failed";
   created_at: string;
 };
 
 export type AppSettings = {
-  edge_tts_enabled: boolean;
+  qwen_enabled: boolean;
   default_daily_character_limit: number;
   global_daily_character_limit: number;
 };
@@ -33,7 +33,7 @@ export type AdminDashboardData = {
 };
 
 const defaultSettings: AppSettings = {
-  edge_tts_enabled: true,
+  qwen_enabled: false,
   default_daily_character_limit: 200000,
   global_daily_character_limit: 2000000,
 };
@@ -44,7 +44,7 @@ export async function getAppSettings(): Promise<AppSettings> {
 
   const { data, error } = await supabase
     .from("app_settings")
-    .select("edge_tts_enabled, default_daily_character_limit, global_daily_character_limit")
+    .select("qwen_enabled, default_daily_character_limit, global_daily_character_limit")
     .eq("id", true)
     .maybeSingle();
 
