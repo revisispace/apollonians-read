@@ -170,7 +170,7 @@ async def reserve_quota(token: str, characters: int, book_id: str | None) -> int
         token,
         {
             "requested_characters": characters,
-            "requested_engine": "edge",
+            "requested_engine": "qwen",
             "requested_book_id": book_id,
         },
     )
@@ -251,7 +251,7 @@ def process_job(job_id: str) -> None:
             current.audio = audio
             current.status = "done"
             succeeded = True
-    except Exception as exc:  # noqa: BLE001 - error is exposed as a safe message
+    except Exception as exc:
         with jobs_lock:
             current = jobs.get(job_id)
             if current:
