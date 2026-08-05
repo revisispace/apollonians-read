@@ -94,7 +94,6 @@ create trigger on_auth_user_created
   after insert or update of email on auth.users
   for each row execute procedure public.handle_new_user();
 
--- Membuat profil untuk akun yang sudah ada sebelum skema ini dipasang.
 insert into public.profiles (id, email)
 select id, email from auth.users
 on conflict (id) do update set email = excluded.email;
@@ -185,8 +184,6 @@ as $$
   where id = event_id and user_id = (select auth.uid()) and status = 'reserved';
 $$;
 
--- Dipanggil manual dari SQL Editor setelah akun biasa didaftarkan.
--- Fungsi ini sengaja tidak dapat dipanggil dari browser.
 create or replace function public.promote_superadmin(account_email text)
 returns void
 language plpgsql

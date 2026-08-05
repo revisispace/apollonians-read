@@ -16,7 +16,8 @@ import { AccountDialog } from "./AccountDialog";
 import { AppHeader } from "./AppHeader";
 import { AccountAudioPlayer } from "./AccountAudioPlayer";
 import { AccountSettingsView } from "./AccountSettingsView";
-import { ActivityView, HomeView, LibraryView, StudioView } from "./Views";
+import { ActivityView, HomeView, LibraryView } from "./Views";
+import { EdgeStudioView } from "./EdgeStudioView";
 import { MobileNav, Sidebar, type ViewId } from "./Navigation";
 import { AdminView } from "./AdminView";
 
@@ -34,28 +35,22 @@ export function AudiobookApp() {
 
   useEffect(() => {
     if (!userId) return;
-
     let activeRequest = true;
 
     const loadAccountLibrary = async () => {
       try {
         if (await hasLegacyLocalBooks()) {
           const claimed = await claimLegacyLocalBooks();
-          if (claimed > 0 && activeRequest) {
-            setStorageMessage(`${claimed} buku lokal lama dipindahkan ke akun ini.`);
-          }
+          if (claimed > 0 && activeRequest) setStorageMessage(`${claimed} buku lokal lama dipindahkan ke akun ini.`);
         }
 
-        const localAssets = await listLocalBooks();
-        const localBooks = localAssets.map((asset) => asset.book);
+        const localBooks = (await listLocalBooks()).map((asset) => asset.book);
         if (!activeRequest) return;
-
         setPersonalBooks(localBooks);
         setSelectedBook(localBooks[0] ?? null);
 
         const cloudBooks = await listCloudBooks();
         if (!activeRequest) return;
-
         setPersonalBooks((current) => {
           const localIds = new Set(current.map((book) => book.id));
           const merged = [...current, ...cloudBooks.filter((book) => !localIds.has(book.id))];
@@ -63,16 +58,12 @@ export function AudiobookApp() {
           return merged;
         });
       } catch (error) {
-        if (activeRequest) {
-          setStorageMessage(error instanceof Error ? error.message : "Data akun gagal dimuat.");
-        }
+        if (activeRequest) setStorageMessage(error instanceof Error ? error.message : "Data akun gagal dimuat.");
       }
     };
 
     void loadAccountLibrary();
-    return () => {
-      activeRequest = false;
-    };
+    return () => { activeRequest = false; };
   }, [userId]);
 
   const allBooks = useMemo(() => [...personalBooks, ...books], [personalBooks]);
@@ -81,7 +72,6 @@ export function AudiobookApp() {
   const createdBook = async (book: Book) => {
     setPersonalBooks((current) => [book, ...current.filter((item) => item.id !== book.id)]);
     setSelectedBook(book);
-
     if (book.generated && userId) {
       setRecentActivities((current) => {
         const next = current.includes(book.title) ? current : [book.title, ...current];
@@ -90,17 +80,14 @@ export function AudiobookApp() {
       });
       setActivityBadge(true);
     }
-
     await syncBookMetadata(book).catch(console.error);
   };
 
   const renameBook = async (book: Book, title: string) => {
     const cleanTitle = title.trim();
     if (!cleanTitle || cleanTitle.length > 300) throw new Error("Judul harus berisi 1–300 karakter.");
-
     await updateCloudBookTitle(book.id, cleanTitle);
     await updateLocalBookTitle(book.id, cleanTitle);
-
     const updated = { ...book, title: cleanTitle };
     setPersonalBooks((current) => current.map((item) => item.id === book.id ? updated : item));
     setSelectedBook((current) => current?.id === book.id ? updated : current);
@@ -109,7 +96,6 @@ export function AudiobookApp() {
   const deleteBook = async (book: Book) => {
     await deleteCloudBook(book.id);
     await removeLocalBook(book.id);
-
     setPersonalBooks((current) => {
       const remaining = current.filter((item) => item.id !== book.id);
       setSelectedBook((selected) => selected?.id === book.id ? remaining[0] ?? null : selected);
@@ -127,35 +113,14 @@ export function AudiobookApp() {
 
   return (
     <div className="app-shell">
-      <Sidebar
-        active={active}
-        onChange={setActive}
-        profileName={accountEmail}
-        onAccount={() => setAccountOpen(true)}
-        isSuperadmin={auth.isSuperadmin}
-      />
+      <Sidebar active={active} onChange={setActive} profileName={accountEmail} onAccount={() => setAccountOpen(true)} isSuperadmin={auth.isSuperadmin} />
       <div className="app-column">
-        <AppHeader
-          active={active}
-          query={query}
-          onQuery={setQuery}
-          onAccount={() => setAccountOpen(true)}
-          accountLabel={accountEmail}
-        />
+        <AppHeader active={active} query={query} onQuery={setQuery} onAccount={() => setAccountOpen(true)} accountLabel={accountEmail} />
         <main>
           {storageMessage && <p className="catalog-message">{storageMessage}</p>}
           {active === "home" && <HomeView allBooks={allBooks} onChange={setActive} onSelect={setSelectedBook} />}
-          {active === "library" && (
-            <LibraryView
-              allBooks={allBooks}
-              query={query}
-              onChange={setActive}
-              onSelect={setSelectedBook}
-              onRename={renameBook}
-              onDelete={deleteBook}
-            />
-          )}
-          {active === "studio" && <StudioView onCreated={createdBook} />}
+          {active === "library" && <LibraryView allBooks={allBooks} query={query} onChange={setActive} onSelect={setSelectedBook} onRename={renameBook} onDelete={deleteBook} />}
+          {active === "studio" && <EdgeStudioView onCreated={createdBook} />}
           {active === "activity" && <ActivityView recent={recentActivities} />}
           {active === "settings" && userId && <AccountSettingsView key={userId} userId={userId} />}
           {active === "admin" && auth.isSuperadmin && <AdminView />}
@@ -163,13 +128,7 @@ export function AudiobookApp() {
         {selectedBook && userId && <AccountAudioPlayer book={selectedBook} userId={userId} />}
       </div>
       {activityBadge && active !== "activity" && (
-        <button
-          className="activity-toast"
-          onClick={() => {
-            setActive("activity");
-            setActivityBadge(false);
-          }}
-        >
+        <button className="activity-toast" onClick={() => { setActive("activity"); setActivityBadge(false); }}>
           <span>1</span> Proses baru ditambahkan
         </button>
       )}

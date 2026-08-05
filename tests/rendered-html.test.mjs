@@ -49,13 +49,11 @@ test("scopes IndexedDB, playback, preferences, and activity to the authenticated
   assert.match(database, /scopedBookKey\(userId, id\)/);
   assert.match(database, /claimLegacyLocalBooks/);
   assert.match(database, /clearCurrentUserLocalBooks/);
-
   assert.match(storage, /apollonians-user-\$\{userId\}/);
   assert.match(storage, /playbackPositionKey/);
   assert.match(storage, /preferencesKey/);
   assert.match(storage, /activityKey/);
   assert.match(storage, /clearAccountLocalStorage/);
-
   assert.match(app, /claimLegacyLocalBooks/);
   assert.match(app, /readAccountActivity\(userId\)/);
   assert.match(app, /<AccountAudioPlayer book=\{selectedBook\} userId=\{userId\}/);
@@ -69,6 +67,36 @@ test("scopes IndexedDB, playback, preferences, and activity to the authenticated
   assert.match(account, /clearAccountLocalStorage\(userId\)/);
 });
 
+test("shows Edge TTS while preserving the existing Oracle and Supabase contracts", async () => {
+  const [client, studio, app, admin, usage, schema, env, workflow] = await Promise.all([
+    readFile(new URL("app/lib/edge-tts.ts", projectRoot), "utf8"),
+    readFile(new URL("app/components/EdgeStudioView.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/lib/admin.ts", projectRoot), "utf8"),
+    readFile(new URL("app/lib/usage.ts", projectRoot), "utf8"),
+    readFile(new URL("supabase/schema.sql", projectRoot), "utf8"),
+    readFile(new URL(".env.example", projectRoot), "utf8"),
+    readFile(new URL(".github/workflows/deploy-pages.yml", projectRoot), "utf8"),
+  ]);
+
+  assert.match(client, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
+  assert.match(client, /\/health/);
+  assert.match(client, /\/v1\/tts/);
+  assert.match(client, /\/v1\/tts\/\$\{jobId\}\/status/);
+  assert.match(client, /\/v1\/tts\/\$\{jobId\}\/audio/);
+  assert.match(client, /Authorization: `Bearer \$\{token\}`/);
+  assert.match(studio, /Edge TTS menjadi suara online utama/);
+  assert.match(studio, /Piper tetap tersedia sebagai fallback lokal/);
+  assert.match(app, /<EdgeStudioView onCreated=\{createdBook\}/);
+  assert.match(admin, /qwen_enabled: settings\.edge_tts_enabled/);
+  assert.match(usage, /"piper" \| "qwen"/);
+  assert.match(schema, /qwen_enabled/);
+  assert.match(schema, /engine in \('piper', 'qwen'\)/);
+  assert.doesNotMatch(schema, /edge_tts_enabled/);
+  assert.match(env, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
+  assert.match(workflow, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
+});
+
 test("runs pull request CI once and protects production deployment", async () => {
   const [ci, workflow] = await Promise.all([
     readFile(new URL(".github/workflows/ci.yml", projectRoot), "utf8"),
@@ -79,7 +107,6 @@ test("runs pull request CI once and protects production deployment", async () =>
   assert.doesNotMatch(ci, /push:\s*\n\s*branches:\s*\n\s*- "agent\/\*\*"/);
   assert.match(ci, /run: npm run lint/);
   assert.match(ci, /run: npm test/);
-
   assert.match(workflow, /Verify required deployment variables/);
   assert.match(workflow, /NEXT_PUBLIC_SUPABASE_URL is required/);
   assert.match(workflow, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required/);
