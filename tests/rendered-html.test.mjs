@@ -35,7 +35,7 @@ test("requires Supabase authentication before rendering the application", async 
   assert.doesNotMatch(account, /Mode lokal aktif|Simpan progres di cloud/);
 });
 
-test("uses local Piper and optional Supabase without exposing server secrets", async () => {
+test("protects deployment and client code without exposing server secrets", async () => {
   const [exampleEnv, gitignore, client, piper, qwen, worker, workflow, schema] = await Promise.all([
     readFile(new URL(".env.example", projectRoot), "utf8"),
     readFile(new URL(".gitignore", projectRoot), "utf8"),
@@ -57,8 +57,15 @@ test("uses local Piper and optional Supabase without exposing server secrets", a
   assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
   assert.doesNotMatch(exampleEnv, /OPENAI_API_KEY|DASHSCOPE_API_KEY|SUPABASE_SERVICE_ROLE_KEY=|sb_secret_[A-Za-z0-9]/);
   assert.match(gitignore, /^\.env\*$/m);
+
   assert.match(workflow, /actions\/deploy-pages@v4/);
-  assert.match(workflow, /npm run build:pages/);
+  assert.match(workflow, /Verify required deployment variables/);
+  assert.match(workflow, /NEXT_PUBLIC_SUPABASE_URL is required/);
+  assert.match(workflow, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required/);
+  assert.match(workflow, /run: npm run lint/);
+  assert.match(workflow, /run: npm test/);
+  assert.match(workflow, /needs: build/);
+
   assert.match(schema, /enable row level security/);
   assert.match(schema, /auth\.uid\(\)/);
   assert.match(schema, /private\.is_superadmin/);
