@@ -41,3 +41,12 @@ test("uses single-column mobile cards and bottom-sheet dialogs", async () => {
   assert.match(css, /max-height:\s*min\(88dvh,\s*760px\)/);
   assert.match(css, /admin-table\s*\{\s*min-width:\s*680px/);
 });
+
+test("keeps account actions styled and aligns preview with the voice field", async () => {
+  const css = await readFile(new URL("app/responsive.css", projectRoot), "utf8");
+
+  assert.match(css, /account-dialog > \.dark-button,[\s\S]*account-dialog > \.delete-book/);
+  assert.match(css, /account-dialog > \.delete-book\s*\{[^}]*border:\s*1px solid/s);
+  assert.match(css, /creator-card > \.setting-grid \+ \.setting-grid \.preview-button\s*\{[^}]*grid-column:\s*2/s);
+  assert.match(css, /@media \(max-width:\s*760px\)[\s\S]*preview-button\s*\{\s*grid-column:\s*1/s);
+});
