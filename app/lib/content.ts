@@ -8,6 +8,7 @@ export type Book = {
   palette: string;
   category: string;
   createdAt?: string;
+  updatedAt?: string;
   sourceName?: string;
   localOnly?: boolean;
   generated?: boolean;
