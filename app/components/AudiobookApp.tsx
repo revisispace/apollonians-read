@@ -4,60 +4,93 @@ import { useEffect, useMemo, useState } from "react";
 import { books, type Book } from "../lib/content";
 import { useAuth } from "../lib/auth";
 import { deleteCloudBook, listCloudBooks, syncBookMetadata, updateCloudBookTitle } from "../lib/cloud-library";
-import { listLocalBooks, removeLocalBook, updateLocalBookTitle } from "../lib/local-db";
+import {
+  claimLegacyLocalBooks,
+  hasLegacyLocalBooks,
+  listLocalBooks,
+  removeLocalBook,
+  updateLocalBookTitle,
+} from "../lib/local-db";
+import { readAccountActivity, writeAccountActivity } from "../lib/account-storage";
 import { AccountDialog } from "./AccountDialog";
 import { AppHeader } from "./AppHeader";
-import { AudioPlayer } from "./AudioPlayer";
-import { ActivityView, HomeView, LibraryView, SettingsView, StudioView } from "./Views";
+import { AccountAudioPlayer } from "./AccountAudioPlayer";
+import { AccountSettingsView } from "./AccountSettingsView";
+import { ActivityView, HomeView, LibraryView, StudioView } from "./Views";
 import { MobileNav, Sidebar, type ViewId } from "./Navigation";
 import { AdminView } from "./AdminView";
 
 export function AudiobookApp() {
   const auth = useAuth();
+  const userId = auth.user?.id ?? "";
   const [active, setActive] = useState<ViewId>("home");
   const [query, setQuery] = useState("");
-  const [selectedBook, setSelectedBook] = useState<Book | null>(books[0] ?? null);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [activityBadge, setActivityBadge] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [personalBooks, setPersonalBooks] = useState<Book[]>([]);
   const [recentActivities, setRecentActivities] = useState<string[]>([]);
+  const [storageMessage, setStorageMessage] = useState("");
 
   useEffect(() => {
-    listLocalBooks()
-      .then((assets) => {
-        const loaded = assets.map((asset) => asset.book);
-        setPersonalBooks(loaded);
-        setSelectedBook((current) => current ?? loaded[0] ?? null);
-      })
-      .catch(console.error);
-  }, []);
+    if (!userId) return;
 
-  useEffect(() => {
-    if (!auth.user) return;
+    let activeRequest = true;
+    setPersonalBooks([]);
+    setSelectedBook(null);
+    setRecentActivities(readAccountActivity(userId));
 
-    listCloudBooks()
-      .then((cloudBooks) => {
+    const loadAccountLibrary = async () => {
+      try {
+        if (await hasLegacyLocalBooks()) {
+          const claimed = await claimLegacyLocalBooks();
+          if (claimed > 0 && activeRequest) {
+            setStorageMessage(`${claimed} buku lokal lama dipindahkan ke akun ini.`);
+          }
+        }
+
+        const localAssets = await listLocalBooks();
+        const localBooks = localAssets.map((asset) => asset.book);
+        if (!activeRequest) return;
+
+        setPersonalBooks(localBooks);
+        setSelectedBook(localBooks[0] ?? null);
+
+        const cloudBooks = await listCloudBooks();
+        if (!activeRequest) return;
+
         setPersonalBooks((current) => {
           const localIds = new Set(current.map((book) => book.id));
           const merged = [...current, ...cloudBooks.filter((book) => !localIds.has(book.id))];
           setSelectedBook((selected) => selected ?? merged[0] ?? null);
           return merged;
         });
-      })
-      .catch(console.error);
-  }, [auth.user]);
+      } catch (error) {
+        if (activeRequest) {
+          setStorageMessage(error instanceof Error ? error.message : "Data akun gagal dimuat.");
+        }
+      }
+    };
+
+    void loadAccountLibrary();
+    return () => {
+      activeRequest = false;
+    };
+  }, [userId]);
 
   const allBooks = useMemo(() => [...personalBooks, ...books], [personalBooks]);
   const accountEmail = auth.user?.email ?? "Pengguna";
-
-  const selectBook = (book: Book) => setSelectedBook(book);
 
   const createdBook = async (book: Book) => {
     setPersonalBooks((current) => [book, ...current.filter((item) => item.id !== book.id)]);
     setSelectedBook(book);
 
-    if (book.generated) {
-      setRecentActivities((current) => current.includes(book.title) ? current : [book.title, ...current]);
+    if (book.generated && userId) {
+      setRecentActivities((current) => {
+        const next = current.includes(book.title) ? current : [book.title, ...current];
+        writeAccountActivity(userId, next);
+        return next;
+      });
       setActivityBadge(true);
     }
 
@@ -66,9 +99,7 @@ export function AudiobookApp() {
 
   const renameBook = async (book: Book, title: string) => {
     const cleanTitle = title.trim();
-    if (!cleanTitle || cleanTitle.length > 300) {
-      throw new Error("Judul harus berisi 1–300 karakter.");
-    }
+    if (!cleanTitle || cleanTitle.length > 300) throw new Error("Judul harus berisi 1–300 karakter.");
 
     await updateCloudBookTitle(book.id, cleanTitle);
     await updateLocalBookTitle(book.id, cleanTitle);
@@ -89,6 +120,14 @@ export function AudiobookApp() {
     });
   };
 
+  const handleLocalDataCleared = () => {
+    setPersonalBooks([]);
+    setSelectedBook(null);
+    setRecentActivities([]);
+    setActivityBadge(false);
+    setStorageMessage("Seluruh data lokal akun ini telah dihapus dari perangkat.");
+  };
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -107,23 +146,24 @@ export function AudiobookApp() {
           accountLabel={accountEmail}
         />
         <main>
-          {active === "home" && <HomeView allBooks={allBooks} onChange={setActive} onSelect={selectBook} />}
+          {storageMessage && <p className="catalog-message">{storageMessage}</p>}
+          {active === "home" && <HomeView allBooks={allBooks} onChange={setActive} onSelect={setSelectedBook} />}
           {active === "library" && (
             <LibraryView
               allBooks={allBooks}
               query={query}
               onChange={setActive}
-              onSelect={selectBook}
+              onSelect={setSelectedBook}
               onRename={renameBook}
               onDelete={deleteBook}
             />
           )}
           {active === "studio" && <StudioView onCreated={createdBook} />}
           {active === "activity" && <ActivityView recent={recentActivities} />}
-          {active === "settings" && <SettingsView />}
+          {active === "settings" && userId && <AccountSettingsView userId={userId} />}
           {active === "admin" && auth.isSuperadmin && <AdminView />}
         </main>
-        {selectedBook && <AudioPlayer book={selectedBook} />}
+        {selectedBook && userId && <AccountAudioPlayer book={selectedBook} userId={userId} />}
       </div>
       {activityBadge && active !== "activity" && (
         <button
@@ -137,7 +177,7 @@ export function AudiobookApp() {
         </button>
       )}
       <MobileNav active={active} onChange={setActive} isSuperadmin={auth.isSuperadmin} />
-      <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} />
+      <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} onLocalDataCleared={handleLocalDataCleared} />
     </div>
   );
 }
