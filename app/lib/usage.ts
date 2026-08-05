@@ -1,7 +1,7 @@
 import { getSupabase } from "./supabase";
 
 export type UsageReservation = { id: number | null; enforced: boolean };
-export type UsageEngine = "piper" | "edge";
+export type UsageEngine = "piper" | "qwen";
 
 export async function reserveUsage(
   characters: number,
@@ -13,7 +13,7 @@ export async function reserveUsage(
 
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
-    if (engine === "edge") throw new Error("Masuk ke akun untuk memakai Edge TTS dan kuota server.");
+    if (engine === "qwen") throw new Error("Masuk ke akun untuk memakai Edge TTS dan kuota server.");
     return { id: null, enforced: false };
   }
 
@@ -25,7 +25,7 @@ export async function reserveUsage(
 
   if (error) {
     if (error.code === "PGRST202" || error.code === "42883") {
-      if (engine === "edge") throw new Error("Skema kuota Edge TTS belum dipasang di Supabase.");
+      if (engine === "qwen") throw new Error("Skema kuota server belum tersedia di Supabase.");
       return { id: null, enforced: false };
     }
     throw error;
