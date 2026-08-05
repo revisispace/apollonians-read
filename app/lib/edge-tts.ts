@@ -125,7 +125,7 @@ export async function generateEdgeAudio(
   maximumChunks = Number.POSITIVE_INFINITY,
   bookId?: string,
   skipCount = 0,
-  onChunkComplete?: (chunk: Blob) => Promise<void> | void,
+  onChunkComplete?: (chunk: Blob) => Promise<unknown> | unknown,
 ) {
   const sourceChunks = textChunks(text);
   const selectedChunks = sourceChunks.slice(0, maximumChunks);
