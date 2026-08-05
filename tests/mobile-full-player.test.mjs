@@ -30,13 +30,28 @@ test("provides a full-screen mobile player with chapter and bookmark panels", as
   assert.match(player, /seek\(30\)/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /position: fixed;\s*\n\s*inset: 0;/);
+  assert.match(styles, /height:\s*100dvh/);
+  assert.match(styles, /max-height:\s*100dvh/);
+  assert.match(styles, /overflow:\s*hidden/);
+  assert.match(styles, /mobile-player-panel\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /env\(safe-area-inset-top\)/);
   assert.match(styles, /env\(safe-area-inset-bottom\)/);
 });
 
-test("integrates lock-screen controls through the Media Session API", async () => {
+test("does not open or advertise a usable full player without local audio", async () => {
   const player = await readFile(new URL("app/components/AccountAudioPlayer.tsx", projectRoot), "utf8");
 
+  assert.match(player, /const hasAudio = chunks > 0/);
+  assert.match(player, /disabled=\{!hasAudio\} onClick=\{openMobilePlayer\}/);
+  assert.match(player, /\{mobileOpen && hasAudio && \(/);
+  assert.match(player, /Audio belum tersedia di perangkat ini/);
+  assert.doesNotMatch(player, /chunks \|\| 1/);
+});
+
+test("integrates lock-screen controls through the Media Session API only when audio exists", async () => {
+  const player = await readFile(new URL("app/components/AccountAudioPlayer.tsx", projectRoot), "utf8");
+
+  assert.match(player, /if \(!hasAudio \|\| !\("mediaSession" in navigator\)\) return/);
   assert.match(player, /navigator\.mediaSession\.metadata = new MediaMetadata/);
   assert.match(player, /setActionHandler\("play"/);
   assert.match(player, /setActionHandler\("pause"/);
@@ -47,10 +62,12 @@ test("integrates lock-screen controls through the Media Session API", async () =
   assert.match(player, /setPositionState/);
 });
 
-test("changing playback speed does not reload the selected book", async () => {
+test("playback state survives speed and metadata-only parent updates", async () => {
   const player = await readFile(new URL("app/components/AccountAudioPlayer.tsx", projectRoot), "utf8");
 
-  assert.match(player, /useEffect\(\(\) => \{\s*\n\s*if \(audioRef\.current\) audioRef\.current\.playbackRate = speed;/);
+  assert.match(player, /speedRef\.current = speed/);
+  assert.match(player, /audioRef\.current\.playbackRate = speed/);
+  assert.match(player, /\}, \[book\.id, book\.localOnly, userId\]\);/);
   assert.doesNotMatch(player, /\}, \[book, speed, userId\]\);/);
-  assert.match(player, /\}, \[book, userId\]\);/);
+  assert.doesNotMatch(player, /\}, \[book, userId\]\);/);
 });
