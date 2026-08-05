@@ -4,13 +4,35 @@ import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
 
-test("exports the Apollonians Read application as static HTML", async () => {
+test("exports the mandatory authentication gate as static HTML", async () => {
   const html = await readFile(new URL("out/index.html", projectRoot), "utf8");
   assert.match(html, /<title>Apollonians Read/);
-  assert.match(html, /Selamat datang kembali, Nabila/);
-  assert.match(html, /The Anthropocene Reviewed/);
-  assert.match(html, /Buat audiobook/);
+  assert.match(html, /Menyiapkan perpustakaanmu/);
+  assert.match(html, /Memeriksa sesi akun dengan aman/);
+  assert.doesNotMatch(html, /Mode lokal aktif|Lanjut tanpa akun|Selamat datang kembali, Nabila/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
+});
+
+test("requires Supabase authentication before rendering the application", async () => {
+  const [page, gate, authView, authProvider, app, account] = await Promise.all([
+    readFile(new URL("app/page.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/AuthGate.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/AuthView.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/lib/auth.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/AccountDialog.tsx", projectRoot), "utf8"),
+  ]);
+
+  assert.match(page, /<AuthGate\s*\/>/);
+  assert.match(gate, /if \(!auth\.user\) return <AuthView/);
+  assert.match(gate, /if \(!auth\.configured\)/);
+  assert.match(authView, /Masuk ke perpustakaanmu/);
+  assert.match(authView, /Buat akun gratis/);
+  assert.match(authView, /Atur ulang password/);
+  assert.match(authProvider, /signInWithPassword/);
+  assert.match(authProvider, /resetPasswordForEmail/);
+  assert.doesNotMatch(app, /Mode lokal|accountLabel=\{auth\.user\?\.email \?\? "Lokal"/);
+  assert.doesNotMatch(account, /Mode lokal aktif|Simpan progres di cloud/);
 });
 
 test("uses local Piper and optional Supabase without exposing server secrets", async () => {
@@ -49,6 +71,7 @@ test("includes catalog management and a role-gated admin dashboard", async () =>
     readFile(new URL("app/components/Views.tsx", projectRoot), "utf8"),
     readFile(new URL("app/components/AdminView.tsx", projectRoot), "utf8"),
   ]);
+
   assert.match(app, /auth\.isSuperadmin/);
   assert.match(app, /deleteCloudBook/);
   assert.match(library, /Ubah judul/);
