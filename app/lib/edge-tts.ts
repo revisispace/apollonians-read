@@ -276,7 +276,7 @@ async function waitForJob(token: string, job: ActiveEdgeJob | { jobId: string; c
     }
   }
 
-  throw new Error("Pembuatan satu bagian audio melewati batas 5 menit. Job aktif disimpan dan akan diperiksa kembali saat proses dilanjutkan.");
+  throw new Error("Pembuatan satu bagian audio melewati batas 5 menit. Job aktif disimpan dan proses dapat dilanjutkan dari bagian terakhir yang tersimpan.");
 }
 
 async function generateOneSegment(
