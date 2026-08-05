@@ -1,7 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Bookmark, BookOpenText, Moon, Pause, Play, RotateCcw, RotateCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bookmark,
+  BookOpenText,
+  ChevronDown,
+  ListMusic,
+  Moon,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  SkipBack,
+  SkipForward,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Book } from "../lib/content";
 import { detectChapters, type DetectedChapter } from "../lib/chapters";
 import { getLocalBook } from "../lib/local-db";
@@ -21,6 +35,7 @@ const formatTime = (seconds: number) => {
 };
 
 type SleepMode = "off" | "15" | "30" | "60" | "end";
+type MobilePanel = "chapters" | "bookmarks" | null;
 
 export function AccountAudioPlayer({ book, userId }: { book: Book; userId: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -40,6 +55,14 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
   const [selectedBookmark, setSelectedBookmark] = useState("");
   const [chapters, setChapters] = useState<DetectedChapter[]>([]);
   const [selectedChapter, setSelectedChapter] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+
+  const activeChapter = useMemo(() => {
+    if (!chapters.length || !chunks) return null;
+    const progress = (chunk + (duration ? elapsed / duration : 0)) / chunks;
+    return [...chapters].reverse().find((item) => item.progress <= progress) ?? chapters[0];
+  }, [chapters, chunk, chunks, duration, elapsed]);
 
   useEffect(() => {
     let active = true;
@@ -58,6 +81,9 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
         setPlaying(false);
         setChunk(0);
         setElapsed(0);
+        setDuration(0);
+        setMobileOpen(false);
+        setMobilePanel(null);
 
         if (!asset?.audioChunks.length) {
           setChunks(0);
@@ -87,7 +113,11 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
       urlsRef.current.forEach(URL.revokeObjectURL);
       urlsRef.current = [];
     };
-  }, [book, speed, userId]);
+  }, [book, userId]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, [speed]);
 
   useEffect(() => {
     if (saveTimerRef.current) window.clearInterval(saveTimerRef.current);
@@ -139,7 +169,7 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     audio.currentTime = Math.max(0, Math.min(audio.duration || 0, audio.currentTime + seconds));
   };
 
-  const moveToChunk = (target: number, currentTime = 0) => {
+  const moveToChunk = (target: number, currentTime = 0, autoplay = false) => {
     const audio = audioRef.current;
     if (!audio || target < 0 || target >= urlsRef.current.length) return;
     setChunk(target);
@@ -147,6 +177,16 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     audio.currentTime = currentTime;
     audio.playbackRate = speed;
     setElapsed(currentTime);
+    setDuration(0);
+    if (autoplay) audio.play().catch(() => setPlaying(false));
+  };
+
+  const previousChunk = () => {
+    if (elapsed > 3) {
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      return;
+    }
+    moveToChunk(chunk - 1, 0, playing);
   };
 
   const nextChunk = () => {
@@ -161,15 +201,12 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
       setPlaying(false);
       return;
     }
-
-    moveToChunk(next);
-    audioRef.current?.play().catch(() => setPlaying(false));
+    moveToChunk(next, 0, true);
   };
 
   const cycleSpeed = () => {
     const next = speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
     setSpeed(next);
-    if (audioRef.current) audioRef.current.playbackRate = next;
   };
 
   const changeSleepMode = (next: SleepMode) => {
@@ -198,13 +235,14 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     setSelectedBookmark(bookmarkId);
     const bookmark = bookmarks.find((item) => item.id === bookmarkId);
     if (!bookmark) return;
-    moveToChunk(bookmark.chunk, bookmark.currentTime);
+    moveToChunk(bookmark.chunk, bookmark.currentTime, playing);
     setMessage(`Berpindah ke ${bookmark.label}`);
+    setMobilePanel(null);
   };
 
-  const deleteBookmark = () => {
-    if (!selectedBookmark) return;
-    const updated = bookmarks.filter((item) => item.id !== selectedBookmark);
+  const deleteBookmark = (bookmarkId = selectedBookmark) => {
+    if (!bookmarkId) return;
+    const updated = bookmarks.filter((item) => item.id !== bookmarkId);
     setBookmarks(updated);
     setSelectedBookmark("");
     writeAudioBookmarks(userId, book.id, updated);
@@ -216,74 +254,141 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     const chapter = chapters.find((item) => item.id === chapterId);
     if (!chapter || !chunks) return;
     const target = Math.min(chunks - 1, Math.max(0, Math.floor(chapter.progress * chunks)));
-    moveToChunk(target);
+    moveToChunk(target, 0, playing);
     setMessage(`Berpindah ke ${chapter.title}`);
+    setMobilePanel(null);
   };
 
+  const moveChapter = (direction: -1 | 1) => {
+    if (!chapters.length) {
+      if (direction < 0) previousChunk();
+      else nextChunk();
+      return;
+    }
+    const currentIndex = Math.max(0, chapters.findIndex((item) => item.id === activeChapter?.id));
+    const target = chapters[currentIndex + direction];
+    if (target) jumpToChapter(target.id);
+  };
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: book.title,
+      artist: book.author,
+      album: activeChapter?.title ?? `Bagian ${chunk + 1} dari ${chunks || 1}`,
+    });
+    navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+    navigator.mediaSession.setActionHandler("play", () => void audioRef.current?.play());
+    navigator.mediaSession.setActionHandler("pause", () => audioRef.current?.pause());
+    navigator.mediaSession.setActionHandler("seekbackward", (details) => seek(-(details.seekOffset ?? 15)));
+    navigator.mediaSession.setActionHandler("seekforward", (details) => seek(details.seekOffset ?? 30));
+    navigator.mediaSession.setActionHandler("previoustrack", previousChunk);
+    navigator.mediaSession.setActionHandler("nexttrack", nextChunk);
+
+    return () => {
+      for (const action of ["play", "pause", "seekbackward", "seekforward", "previoustrack", "nexttrack"] as MediaSessionAction[]) {
+        navigator.mediaSession.setActionHandler(action, null);
+      }
+    };
+  }, [activeChapter?.title, book.author, book.title, chunk, chunks, playing]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !duration || !Number.isFinite(duration)) return;
+    try {
+      navigator.mediaSession.setPositionState({ duration, playbackRate: speed, position: Math.min(elapsed, duration) });
+    } catch {
+      // Some browsers reject position updates while metadata is still loading.
+    }
+  }, [duration, elapsed, speed]);
+
+  const progress = duration ? Math.min(100, (elapsed / duration) * 100) : 0;
+
   return (
-    <section className="audio-player" aria-label="Pemutar audio">
-      <audio
-        ref={audioRef}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onTimeUpdate={(event) => setElapsed(event.currentTarget.currentTime)}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-        onEnded={nextChunk}
-      />
-      <div className="player-book">
-        <BookCover title={book.title} author={book.author} palette={book.palette} />
-        <div><strong>{book.title}</strong><small>{chunks ? `Bagian ${chunk + 1} dari ${chunks}` : message}</small></div>
-      </div>
-      <div className="player-center">
-        <div className="player-controls">
-          <button onClick={() => seek(-15)} aria-label="Mundur 15 detik"><RotateCcw size={18} /><small>15</small></button>
-          <button className="play-button" disabled={!chunks} onClick={toggle} aria-label={playing ? "Jeda" : "Putar"}>
-            {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
-          </button>
-          <button onClick={() => seek(30)} aria-label="Maju 30 detik"><RotateCw size={18} /><small>30</small></button>
-        </div>
-        <div className="player-progress">
-          <small>{formatTime(elapsed)}</small>
-          <button
-            aria-label="Posisi audio"
-            onClick={(event) => {
+    <>
+      <section className="audio-player" aria-label="Pemutar audio">
+        <audio
+          ref={audioRef}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onTimeUpdate={(event) => setElapsed(event.currentTarget.currentTime)}
+          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+          onEnded={nextChunk}
+        />
+        <button className="player-book player-book-open" onClick={() => setMobileOpen(true)} aria-label="Buka player penuh">
+          <BookCover title={book.title} author={book.author} palette={book.palette} />
+          <div><strong>{book.title}</strong><small>{chunks ? `Bagian ${chunk + 1} dari ${chunks}` : message}</small></div>
+          <ChevronDown className="player-expand-icon" size={18} />
+        </button>
+        <div className="player-center">
+          <div className="player-controls">
+            <button onClick={() => seek(-15)} aria-label="Mundur 15 detik"><RotateCcw size={18} /><small>15</small></button>
+            <button className="play-button" disabled={!chunks} onClick={toggle} aria-label={playing ? "Jeda" : "Putar"}>
+              {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+            </button>
+            <button onClick={() => seek(30)} aria-label="Maju 30 detik"><RotateCw size={18} /><small>30</small></button>
+          </div>
+          <div className="player-progress">
+            <small>{formatTime(elapsed)}</small>
+            <button aria-label="Posisi audio" onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
               if (audioRef.current && duration) audioRef.current.currentTime = ((event.clientX - rect.left) / rect.width) * duration;
-            }}
-          ><span style={{ width: `${duration ? (elapsed / duration) * 100 : 0}%` }} /></button>
-          <small>{formatTime(duration)}</small>
+            }}><span style={{ width: `${progress}%` }} /></button>
+            <small>{formatTime(duration)}</small>
+          </div>
         </div>
-      </div>
-      <div className="player-tools">
-        <button className="speed-button" onClick={cycleSpeed}>{speed}×</button>
-        <label className="sleep-button">
-          <BookOpenText size={15} />
-          <select value={selectedChapter} onChange={(event) => jumpToChapter(event.target.value)} aria-label="Daftar bab">
-            <option value="">{chapters.length ? `${chapters.length} bab` : "Bab tidak terdeteksi"}</option>
-            {chapters.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-          </select>
-        </label>
-        <button className="speed-button" disabled={!chunks} onClick={addBookmark} aria-label="Simpan bookmark"><Bookmark size={15} /></button>
-        <label className="sleep-button">
-          <Bookmark size={15} />
-          <select value={selectedBookmark} onChange={(event) => jumpToBookmark(event.target.value)} aria-label="Daftar bookmark">
-            <option value="">{bookmarks.length ? `${bookmarks.length} bookmark` : "Bookmark"}</option>
-            {bookmarks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-        </label>
-        <button className="speed-button" disabled={!selectedBookmark} onClick={deleteBookmark} aria-label="Hapus bookmark"><Trash2 size={15} /></button>
-        <label className={`sleep-button ${sleepMode !== "off" ? "active" : ""}`}>
-          <Moon size={16} />
-          <select value={sleepMode} onChange={(event) => changeSleepMode(event.target.value as SleepMode)} aria-label="Sleep timer">
-            <option value="off">Off</option>
-            <option value="15">15 mnt</option>
-            <option value="30">30 mnt</option>
-            <option value="60">60 mnt</option>
-            <option value="end">Akhir part</option>
-          </select>
-          <span className="sleep-label">{sleepSecondsLeft === null ? (sleepMode === "end" ? "Akhir" : "Timer") : formatTime(sleepSecondsLeft)}</span>
-        </label>
-      </div>
-    </section>
+        <div className="player-tools">
+          <button className="speed-button" onClick={cycleSpeed}>{speed}×</button>
+          <label className="sleep-button"><BookOpenText size={15} /><select value={selectedChapter} onChange={(event) => jumpToChapter(event.target.value)} aria-label="Daftar bab"><option value="">{chapters.length ? `${chapters.length} bab` : "Bab tidak terdeteksi"}</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+          <button className="speed-button" disabled={!chunks} onClick={addBookmark} aria-label="Simpan bookmark"><Bookmark size={15} /></button>
+          <label className="sleep-button"><Bookmark size={15} /><select value={selectedBookmark} onChange={(event) => jumpToBookmark(event.target.value)} aria-label="Daftar bookmark"><option value="">{bookmarks.length ? `${bookmarks.length} bookmark` : "Bookmark"}</option>{bookmarks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+          <button className="speed-button" disabled={!selectedBookmark} onClick={() => deleteBookmark()} aria-label="Hapus bookmark"><Trash2 size={15} /></button>
+          <label className={`sleep-button ${sleepMode !== "off" ? "active" : ""}`}><Moon size={16} /><select value={sleepMode} onChange={(event) => changeSleepMode(event.target.value as SleepMode)} aria-label="Sleep timer"><option value="off">Off</option><option value="15">15 mnt</option><option value="30">30 mnt</option><option value="60">60 mnt</option><option value="end">Akhir part</option></select><span className="sleep-label">{sleepSecondsLeft === null ? (sleepMode === "end" ? "Akhir" : "Timer") : formatTime(sleepSecondsLeft)}</span></label>
+        </div>
+      </section>
+
+      {mobileOpen && (
+        <section className="mobile-full-player" role="dialog" aria-modal="true" aria-label="Player penuh">
+          <header className="mobile-player-header">
+            <button onClick={() => { setMobileOpen(false); setMobilePanel(null); }} aria-label="Tutup player penuh"><X size={22} /></button>
+            <div><strong>Sedang diputar</strong><small>{activeChapter?.title ?? `Bagian ${chunk + 1}`}</small></div>
+            <button onClick={addBookmark} disabled={!chunks} aria-label="Simpan bookmark"><Bookmark size={21} /></button>
+          </header>
+
+          <div className="mobile-player-art"><BookCover title={book.title} author={book.author} palette={book.palette} /></div>
+          <div className="mobile-player-copy"><p>{activeChapter?.title ?? `Bagian ${chunk + 1} dari ${chunks}`}</p><h2>{book.title}</h2><span>{book.author}</span></div>
+
+          <div className="mobile-player-timeline">
+            <input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(elapsed, duration || 0)} onChange={(event) => { if (audioRef.current) audioRef.current.currentTime = Number(event.target.value); }} aria-label="Posisi audio" />
+            <div><small>{formatTime(elapsed)}</small><small>{formatTime(duration)}</small></div>
+          </div>
+
+          <div className="mobile-player-primary-controls">
+            <button onClick={() => moveChapter(-1)} aria-label="Bab sebelumnya"><SkipBack size={25} fill="currentColor" /></button>
+            <button onClick={() => seek(-15)} aria-label="Mundur 15 detik"><RotateCcw size={27} /><small>15</small></button>
+            <button className="mobile-main-play" disabled={!chunks} onClick={toggle} aria-label={playing ? "Jeda" : "Putar"}>{playing ? <Pause size={34} fill="currentColor" /> : <Play size={34} fill="currentColor" />}</button>
+            <button onClick={() => seek(30)} aria-label="Maju 30 detik"><RotateCw size={27} /><small>30</small></button>
+            <button onClick={() => moveChapter(1)} aria-label="Bab berikutnya"><SkipForward size={25} fill="currentColor" /></button>
+          </div>
+
+          <div className="mobile-player-secondary-controls">
+            <button onClick={cycleSpeed}><strong>{speed}×</strong><small>Kecepatan</small></button>
+            <label><Moon size={20} /><select value={sleepMode} onChange={(event) => changeSleepMode(event.target.value as SleepMode)} aria-label="Sleep timer"><option value="off">Off</option><option value="15">15 menit</option><option value="30">30 menit</option><option value="60">60 menit</option><option value="end">Akhir bagian</option></select><small>Timer</small></label>
+            <button onClick={() => setMobilePanel(mobilePanel === "chapters" ? null : "chapters")}><BookOpenText size={20} /><small>Bab</small></button>
+            <button onClick={() => setMobilePanel(mobilePanel === "bookmarks" ? null : "bookmarks")}><ListMusic size={20} /><small>Bookmark</small></button>
+          </div>
+
+          {mobilePanel && (
+            <div className="mobile-player-panel">
+              <div className="mobile-player-panel-head"><strong>{mobilePanel === "chapters" ? "Daftar bab" : "Daftar bookmark"}</strong><button onClick={() => setMobilePanel(null)} aria-label="Tutup panel"><X size={18} /></button></div>
+              {mobilePanel === "chapters" ? (
+                chapters.length ? chapters.map((item) => <button key={item.id} className={item.id === activeChapter?.id ? "active" : ""} onClick={() => jumpToChapter(item.id)}><span>{item.title}</span><small>{Math.round(item.progress * 100)}%</small></button>) : <p>Bab belum terdeteksi pada buku ini.</p>
+              ) : (
+                bookmarks.length ? bookmarks.map((item) => <div key={item.id}><button onClick={() => jumpToBookmark(item.id)}><span>{item.label}</span><small>Bagian {item.chunk + 1}</small></button><button onClick={() => deleteBookmark(item.id)} aria-label={`Hapus ${item.label}`}><Trash2 size={17} /></button></div>) : <p>Belum ada bookmark. Tekan ikon bookmark untuk menyimpan posisi.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+    </>
   );
 }
