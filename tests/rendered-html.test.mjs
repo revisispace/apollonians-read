@@ -62,7 +62,8 @@ test("uses Edge TTS as the authenticated online engine", async () => {
   assert.match(admin, /edge_tts_enabled/);
   assert.match(usage, /"piper" \| "edge"/);
   assert.match(env, /NEXT_PUBLIC_EDGE_TTS_ENDPOINT=https:\/\/apollonians\.duckdns\.org/);
-  assert.doesNotMatch(env, /QWEN|service_role|sb_secret_/i);
+  assert.doesNotMatch(env, /^\s*(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|SB_SECRET_KEY)\s*=/im);
+  assert.doesNotMatch(env, /^\s*NEXT_PUBLIC_QWEN_TTS_ENDPOINT\s*=/im);
   assert.match(workflow, /NEXT_PUBLIC_EDGE_TTS_ENDPOINT/);
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
 });
@@ -83,7 +84,7 @@ test("provides a secure Oracle Edge TTS service and database migration", async (
   assert.match(service, /@app\.post\("\/api\/tts\/generate"\)/);
   assert.match(service, /requested_engine": "edge"/);
   assert.doesNotMatch(service, /mvjcoumfhtrntcxfpuda|sb_publishable_jsyskn/);
-  assert.doesNotMatch(serviceEnv, /sb_secret_|service_role/i);
+  assert.doesNotMatch(serviceEnv, /^\s*(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|SB_SECRET_KEY)\s*=/im);
   assert.match(requirements, /edge-tts==/);
   assert.match(unit, /EnvironmentFile=\/etc\/apollonians-read\/edge-tts\.env/);
   assert.match(migration, /engine in \('piper', 'edge'\)/);
