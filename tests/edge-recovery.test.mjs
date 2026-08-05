@@ -21,7 +21,7 @@ test("status and audio reads retry transient failures without retrying job creat
   assert.match(source, /isTransientStatus/);
   assert.match(source, /\/status`, undefined, TRANSIENT_RETRIES/);
   assert.match(source, /\/audio`, undefined, TRANSIENT_RETRIES/);
-  assert.match(source, /authedFetch\(token, "\/v1\/tts", \{/);
+  assert.match(source, /authedFetch\((?:token|identity\.token), "\/v1\/tts", \{/);
 });
 
 test("audio generation resumes from locally completed segments", async () => {
