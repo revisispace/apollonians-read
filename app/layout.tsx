@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "./lib/auth";
+import { ServiceWorkerRegistration } from "./components/ServiceWorkerRegistration";
 
 const pagesOwner = process.env.GITHUB_REPOSITORY_OWNER;
 const pagesRepository = process.env.GITHUB_REPOSITORY?.split("/")[1];
@@ -14,6 +15,12 @@ export const metadata: Metadata = {
   title: "Apollonians Read — Ubah buku menjadi audio",
   description: "Studio audiobook pribadi untuk mengubah tautan dan file buku menjadi pengalaman mendengarkan yang nyaman.",
   applicationName: "Apollonians Read",
+  manifest: "manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Apollonians Read",
+  },
   icons: {
     icon: [{ url: "favicon.svg", type: "image/svg+xml" }],
     apple: [{ url: "apollonians_read_brand/app-icon.svg" }],
@@ -41,8 +48,12 @@ export default function RootLayout({
     <html lang="id">
       <head>
         <meta name="theme-color" content="#1f2824" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+        <ServiceWorkerRegistration />
+      </body>
     </html>
   );
 }
