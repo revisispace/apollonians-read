@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  Download,
   FileAudio,
   Headphones,
   Pencil,
@@ -14,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Book } from "../lib/content";
+import { exportBookAudio } from "../lib/audio-export";
 import { BookCover } from "./BookCover";
 
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
@@ -132,6 +134,7 @@ export function LibraryView({
   const [editing, setEditing] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [exporting, setExporting] = useState<string | null>(null);
 
   let visibleBooks = allBooks.filter((book) => {
     const matchesSearch = `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase());
@@ -145,6 +148,19 @@ export function LibraryView({
   if (sort === "Judul A-Z") visibleBooks = [...visibleBooks].sort((a, b) => a.title.localeCompare(b.title));
   else if (sort === "Progres") visibleBooks = [...visibleBooks].sort((a, b) => (b.generated ? 100 : b.progress) - (a.generated ? 100 : a.progress));
   else visibleBooks = [...visibleBooks].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+
+  const downloadAudio = async (book: Book) => {
+    setExporting(book.id);
+    setMessage("");
+    try {
+      const parts = await exportBookAudio(book);
+      setMessage(`${parts} bagian audio berhasil diekspor sebagai ZIP.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Audio gagal diekspor.");
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
     <div className="view library-view">
@@ -193,6 +209,9 @@ export function LibraryView({
               {!book.id.startsWith("demo-") && (
                 <div className="book-actions">
                   <button onClick={() => { setEditing(book.id); setDraftTitle(book.title); }}><Pencil size={13} /> Ubah judul</button>
+                  <button disabled={!book.generated || exporting === book.id} onClick={() => downloadAudio(book)}>
+                    <Download size={13} /> {exporting === book.id ? "Mengekspor…" : "Unduh audio"}
+                  </button>
                   <button className="delete-book" onClick={async () => {
                     if (!window.confirm(`Hapus “${book.title}” beserta audio lokalnya?`)) return;
                     try { await onDelete(book); setMessage("Buku berhasil dihapus."); }
