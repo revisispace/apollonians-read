@@ -32,6 +32,14 @@ test("keeps player navigation tools available on tablet and mobile", async () =>
   assert.doesNotMatch(css, /player-tools\s*\{[^}]*display:\s*none/);
 });
 
+test("resets the tablet sidebar offset before rendering the mobile shell", async () => {
+  const css = await readFile(new URL("app/responsive.css", projectRoot), "utf8");
+
+  assert.match(css, /@media \(max-width:\s*1100px\)[\s\S]*\.app-column\s*\{\s*margin-left:\s*208px/);
+  assert.match(css, /@media \(max-width:\s*760px\)[\s\S]*\.app-column\s*\{\s*margin-left:\s*0;/);
+  assert.match(css, /\.app-shell, \.app-column, main\s*\{\s*width:\s*100%;\s*max-width:\s*100%;/);
+});
+
 test("uses single-column mobile cards and bottom-sheet dialogs", async () => {
   const css = await readFile(new URL("app/responsive.css", projectRoot), "utf8");
 
@@ -40,6 +48,7 @@ test("uses single-column mobile cards and bottom-sheet dialogs", async () => {
   assert.match(css, /dialog-backdrop\s*\{\s*align-items:\s*end/);
   assert.match(css, /max-height:\s*min\(88dvh,\s*760px\)/);
   assert.match(css, /admin-table\s*\{\s*min-width:\s*680px/);
+  assert.match(css, /audio-player\.is-unavailable\s*\{[^}]*min-height:\s*74px/s);
 });
 
 test("keeps account actions styled and aligns preview with the voice field", async () => {
