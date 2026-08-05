@@ -2,12 +2,12 @@ import { textChunks } from "./document-parser";
 import type { TtsProgress } from "./piper";
 import { getSupabase } from "./supabase";
 
-const configuredEndpoint = process.env.NEXT_PUBLIC_EDGE_TTS_ENDPOINT?.trim().replace(/\/$/, "");
-export const edgeTtsEndpoint = configuredEndpoint || "https://apollonians.duckdns.org";
-export const isEdgeTtsConfigured = Boolean(edgeTtsEndpoint);
+const endpoint = process.env.NEXT_PUBLIC_QWEN_TTS_ENDPOINT?.trim().replace(/\/$/, "");
+export const edgeTtsEndpoint = endpoint ?? "";
+export const isEdgeTtsConfigured = Boolean(endpoint);
 
-const SEGMENT_LIMIT = 3500;
-const POLL_INTERVAL_MS = 1200;
+const SEGMENT_LIMIT = 3000;
+const POLL_INTERVAL_MS = 3000;
 
 export type EdgeVoice = {
   id: string;
@@ -25,9 +25,19 @@ export type EdgeVoiceOptions = {
 };
 
 type EdgeJobStatus = {
-  status: "queued" | "processing" | "done" | "failed" | "cancelled";
+  status: "queued" | "processing" | "done" | "failed";
   error?: string | null;
 };
+
+const existingOracleVoices: EdgeVoice[] = [
+  { id: "Ryan", name: "Ryan", locale: "en-US", gender: "Male", label: "Ryan · Pria · English US" },
+  { id: "Guy", name: "Guy", locale: "en-US", gender: "Male", label: "Guy · Pria · English US" },
+  { id: "Davis", name: "Davis", locale: "en-US", gender: "Male", label: "Davis · Pria · English US" },
+  { id: "Jenny", name: "Jenny", locale: "en-US", gender: "Female", label: "Jenny · Wanita · English US" },
+  { id: "Aria", name: "Aria", locale: "en-US", gender: "Female", label: "Aria · Wanita · English US" },
+  { id: "Serena", name: "Serena", locale: "en-US", gender: "Female", label: "Serena · Wanita · English US" },
+  { id: "Vivian", name: "Vivian", locale: "en-US", gender: "Female", label: "Vivian · Wanita · English US" },
+];
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -41,18 +51,6 @@ function mergeIntoSegments(text: string, limit = SEGMENT_LIMIT) {
   for (const sentence of sentences) {
     const piece = sentence.trim();
     if (!piece) continue;
-
-    if (piece.length > limit) {
-      if (current) {
-        segments.push(current);
-        current = "";
-      }
-      for (let offset = 0; offset < piece.length; offset += limit) {
-        segments.push(piece.slice(offset, offset + limit));
-      }
-      continue;
-    }
-
     if (current && `${current} ${piece}`.length > limit) {
       segments.push(current);
       current = piece;
@@ -78,12 +76,13 @@ async function readError(response: Response) {
   return new Error(problem?.detail ?? problem?.error ?? `Layanan Edge TTS gagal (${response.status}).`);
 }
 
-async function authedFetch(path: string, init?: RequestInit) {
-  const token = await getSessionToken();
-  const response = await fetch(`${edgeTtsEndpoint}${path}`, {
+async function authedFetch(token: string, path: string, init?: RequestInit) {
+  if (!endpoint) throw new Error("Endpoint Edge TTS belum dikonfigurasi.");
+  const response = await fetch(`${endpoint}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
+      "ngrok-skip-browser-warning": "1",
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },
@@ -93,29 +92,43 @@ async function authedFetch(path: string, init?: RequestInit) {
 }
 
 export async function getEdgeHealth() {
-  const response = await fetch(`${edgeTtsEndpoint}/api/health`, { cache: "no-store" });
+  if (!endpoint) throw new Error("Endpoint Edge TTS belum dikonfigurasi.");
+  const response = await fetch(`${endpoint}/health`, { cache: "no-store" });
   if (!response.ok) throw await readError(response);
-  return response.json() as Promise<{ ok: boolean; engine: string; queue_depth: number }>;
+  return response.json() as Promise<{ ok: boolean; engine?: string; loaded?: boolean }>;
 }
 
 export async function listEdgeVoices() {
-  const response = await authedFetch("/api/voices");
-  const body = await response.json() as { voices: EdgeVoice[] };
-  return body.voices;
+  return existingOracleVoices;
+}
+
+async function generateOneSegment(text: string, voice: string, bookId?: string) {
+  const token = await getSessionToken();
+  const startResponse = await authedFetch(token, "/v1/tts", {
+    method: "POST",
+    body: JSON.stringify({
+      text,
+      book_id: bookId ?? null,
+      language: "English",
+      speaker: voice,
+    }),
+  });
+  const { job_id: jobId } = await startResponse.json() as { job_id: string };
+
+  for (;;) {
+    await sleep(POLL_INTERVAL_MS);
+    const statusResponse = await authedFetch(token, `/v1/tts/${jobId}/status`);
+    const status = await statusResponse.json() as EdgeJobStatus;
+    if (status.status === "failed") throw new Error(status.error ?? "Edge TTS gagal membuat audio.");
+    if (status.status === "done") break;
+  }
+
+  const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`);
+  return audioResponse.blob();
 }
 
 export async function previewEdgeVoice(options: EdgeVoiceOptions) {
-  const response = await authedFetch("/api/tts/preview", {
-    method: "POST",
-    body: JSON.stringify({
-      text: "Halo, ini contoh suara narator Apollonians Read.",
-      voice: options.voice,
-      rate: options.rate ?? 0,
-      pitch: options.pitch ?? 0,
-      volume: options.volume ?? 0,
-    }),
-  });
-  return response.blob();
+  return generateOneSegment("Halo, ini contoh suara narator Apollonians Read.", options.voice);
 }
 
 export async function generateEdgeAudio(
@@ -139,30 +152,7 @@ export async function generateEdgeAudio(
     }
 
     onProgress?.({ phase: "model", completed: index, total: segments.length });
-    const startResponse = await authedFetch("/api/tts/generate", {
-      method: "POST",
-      body: JSON.stringify({
-        text: segments[index],
-        book_id: bookId ?? null,
-        voice: options.voice,
-        rate: options.rate ?? 0,
-        pitch: options.pitch ?? 0,
-        volume: options.volume ?? 0,
-      }),
-    });
-    const { job_id: jobId } = await startResponse.json() as { job_id: string };
-
-    for (;;) {
-      await sleep(POLL_INTERVAL_MS);
-      const statusResponse = await authedFetch(`/api/jobs/${jobId}`);
-      const status = await statusResponse.json() as EdgeJobStatus;
-      if (status.status === "failed") throw new Error(status.error ?? "Edge TTS gagal membuat audio.");
-      if (status.status === "cancelled") throw new Error("Pembuatan audio dibatalkan.");
-      if (status.status === "done") break;
-    }
-
-    const audioResponse = await authedFetch(`/api/jobs/${jobId}/audio`);
-    const blob = await audioResponse.blob();
+    const blob = await generateOneSegment(segments[index], options.voice, bookId);
     output.push(blob);
     await onChunkComplete?.(blob);
     onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
