@@ -21,7 +21,7 @@ jobs:
       GITHUB_PAGES: "true"
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      NEXT_PUBLIC_EDGE_TTS_ENDPOINT: ${{ vars.NEXT_PUBLIC_EDGE_TTS_ENDPOINT || 'https://apollonians.duckdns.org' }}
+      NEXT_PUBLIC_QWEN_TTS_ENDPOINT: ${{ vars.NEXT_PUBLIC_QWEN_TTS_ENDPOINT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,7 +40,6 @@ jobs:
         run: |
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo "NEXT_PUBLIC_SUPABASE_URL is required"; exit 1; }
           test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" || { echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required"; exit 1; }
-          test -n "$NEXT_PUBLIC_EDGE_TTS_ENDPOINT" || { echo "NEXT_PUBLIC_EDGE_TTS_ENDPOINT is required"; exit 1; }
 
       - name: Install dependencies
         run: npm ci
