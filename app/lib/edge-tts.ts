@@ -3,6 +3,7 @@ import type { TtsProgress } from "./piper";
 import { getSupabase } from "./supabase";
 import {
   clearActiveEdgeJob,
+  listActiveEdgeJobs,
   readActiveEdgeJob,
   writeActiveEdgeJob,
   type ActiveEdgeJob,
@@ -155,6 +156,58 @@ export async function getEdgeHealth() {
 
 export async function listEdgeVoices() {
   return existingOracleVoices;
+}
+
+export async function recoverActiveEdgeJobs(
+  userId: string,
+  onRecovered: (job: ActiveEdgeJob, chunk: Blob) => Promise<unknown> | unknown,
+) {
+  const jobs = listActiveEdgeJobs(userId);
+  if (!jobs.length) return { checked: 0, recovered: 0, pending: 0, cleared: 0 };
+
+  const identity = await getSessionIdentity();
+  if (identity.userId !== userId) return { checked: 0, recovered: 0, pending: 0, cleared: 0 };
+
+  let recovered = 0;
+  let pending = 0;
+  let cleared = 0;
+
+  for (const job of jobs) {
+    if (Date.now() - job.createdAt > ACTIVE_JOB_TTL_MS) {
+      clearActiveEdgeJob(userId, job.bookId, job.jobId);
+      cleared += 1;
+      continue;
+    }
+
+    try {
+      const response = await authedFetch(identity.token, `/v1/tts/${job.jobId}/status`, undefined, TRANSIENT_RETRIES);
+      const status = await response.json() as EdgeJobStatus;
+      if (status.status === "failed") {
+        clearActiveEdgeJob(userId, job.bookId, job.jobId);
+        cleared += 1;
+        continue;
+      }
+      if (status.status !== "done") {
+        pending += 1;
+        continue;
+      }
+
+      const audioResponse = await authedFetch(identity.token, `/v1/tts/${job.jobId}/audio`, undefined, TRANSIENT_RETRIES);
+      const chunk = await audioResponse.blob();
+      await onRecovered(job, chunk);
+      clearActiveEdgeJob(userId, job.bookId, job.jobId);
+      recovered += 1;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("404")) {
+        clearActiveEdgeJob(userId, job.bookId, job.jobId);
+        cleared += 1;
+      } else {
+        pending += 1;
+      }
+    }
+  }
+
+  return { checked: jobs.length, recovered, pending, cleared };
 }
 
 function matchingRecoverableJob(
