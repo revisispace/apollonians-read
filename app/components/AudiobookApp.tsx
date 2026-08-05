@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { books, type Book } from "../lib/content";
 import { useAuth } from "../lib/auth";
 import { deleteCloudBook, listCloudBooks, syncBookMetadata, updateCloudBookTitle } from "../lib/cloud-library";
+import { mergeBookMetadata, normalizeBookMetadata } from "../lib/book-metadata";
 import {
   claimLegacyLocalBooks,
   hasLegacyLocalBooks,
@@ -44,19 +45,28 @@ export function AudiobookApp() {
           if (claimed > 0 && activeRequest) setStorageMessage(`${claimed} buku lokal lama dipindahkan ke akun ini.`);
         }
 
-        const localBooks = (await listLocalBooks()).map((asset) => asset.book);
-        if (!activeRequest) return;
-        setPersonalBooks(localBooks);
-        setSelectedBook(localBooks[0] ?? null);
-
+        const localAssets = await listLocalBooks();
+        const localBooks = localAssets.map((asset) => normalizeBookMetadata({
+          ...asset.book,
+          updatedAt: asset.updatedAt,
+          localOnly: true,
+        }, asset.audioChunks.length));
         const cloudBooks = await listCloudBooks();
         if (!activeRequest) return;
-        setPersonalBooks((current) => {
-          const localIds = new Set(current.map((book) => book.id));
-          const merged = [...current, ...cloudBooks.filter((book) => !localIds.has(book.id))];
-          setSelectedBook((selected) => selected ?? merged[0] ?? null);
-          return merged;
+
+        const cloudById = new Map(cloudBooks.map((book) => [book.id, book]));
+        const mergedLocal = localBooks.map((book) => {
+          const cloud = cloudById.get(book.id);
+          if (!cloud) return book;
+          cloudById.delete(book.id);
+          return mergeBookMetadata(book, cloud);
         });
+        const merged = [...mergedLocal, ...cloudById.values()]
+          .sort((a, b) => (b.updatedAt ?? b.createdAt ?? "").localeCompare(a.updatedAt ?? a.createdAt ?? ""));
+
+        setPersonalBooks(merged);
+        setSelectedBook((selected) => selected ? merged.find((book) => book.id === selected.id) ?? merged[0] ?? null : merged[0] ?? null);
+        await Promise.allSettled(mergedLocal.map((book) => syncBookMetadata(book)));
       } catch (error) {
         if (activeRequest) setStorageMessage(error instanceof Error ? error.message : "Data akun gagal dimuat.");
       }
@@ -70,25 +80,27 @@ export function AudiobookApp() {
   const accountEmail = auth.user?.email ?? "Pengguna";
 
   const createdBook = async (book: Book) => {
-    setPersonalBooks((current) => [book, ...current.filter((item) => item.id !== book.id)]);
-    setSelectedBook(book);
-    if (book.generated && userId) {
+    const normalized = normalizeBookMetadata({ ...book, updatedAt: new Date().toISOString() });
+    setPersonalBooks((current) => [normalized, ...current.filter((item) => item.id !== normalized.id)]);
+    setSelectedBook(normalized);
+    if (normalized.generated && userId) {
       setRecentActivities((current) => {
-        const next = current.includes(book.title) ? current : [book.title, ...current];
+        const next = current.includes(normalized.title) ? current : [normalized.title, ...current];
         writeAccountActivity(userId, next);
         return next;
       });
       setActivityBadge(true);
     }
-    await syncBookMetadata(book).catch(console.error);
+    await syncBookMetadata(normalized).catch(console.error);
   };
 
   const renameBook = async (book: Book, title: string) => {
     const cleanTitle = title.trim();
     if (!cleanTitle || cleanTitle.length > 300) throw new Error("Judul harus berisi 1–300 karakter.");
+    const updatedAt = new Date().toISOString();
     await updateCloudBookTitle(book.id, cleanTitle);
     await updateLocalBookTitle(book.id, cleanTitle);
-    const updated = { ...book, title: cleanTitle };
+    const updated = normalizeBookMetadata({ ...book, title: cleanTitle, updatedAt });
     setPersonalBooks((current) => current.map((item) => item.id === book.id ? updated : item));
     setSelectedBook((current) => current?.id === book.id ? updated : current);
   };
