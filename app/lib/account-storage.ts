@@ -112,6 +112,20 @@ export function readActiveEdgeJob(userId: string, bookId: string) {
   }
 }
 
+export function listActiveEdgeJobs(userId: string) {
+  if (typeof window === "undefined") return [];
+  const keyPrefix = `${accountPrefix(userId)}-edge-job-`;
+  const jobs: ActiveEdgeJob[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(keyPrefix)) continue;
+    const bookId = key.slice(keyPrefix.length);
+    const job = readActiveEdgeJob(userId, bookId);
+    if (job) jobs.push(job);
+  }
+  return jobs;
+}
+
 export function writeActiveEdgeJob(userId: string, job: ActiveEdgeJob) {
   try {
     localStorage.setItem(activeEdgeJobKey(userId, job.bookId), JSON.stringify(job));
