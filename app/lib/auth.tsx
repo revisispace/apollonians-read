@@ -31,15 +31,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [roleState, setRoleState] = useState<{ userId: string; role: UserRole } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
     const supabase = getSupabase();
-
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+    if (!supabase) return;
 
     let active = true;
 
@@ -47,9 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase.auth.getUser();
         if (error) throw error;
-        if (active) setUser(data.user);
+        if (active) {
+          setUser(data.user);
+          setRoleState(null);
+        }
       } catch {
-        if (active) setUser(null);
+        if (active) {
+          setUser(null);
+          setRoleState(null);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -59,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setRoleState(null);
       setLoading(false);
-      if (!session?.user) setRoleState(null);
     });
 
     return () => {
@@ -71,11 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const supabase = getSupabase();
-
-    if (!supabase || !user) {
-      setRoleState(null);
-      return;
-    }
+    if (!supabase || !user) return;
 
     let active = true;
 
