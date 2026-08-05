@@ -4,25 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Pause, Play, RefreshCw } from "lucide-react";
 import { generateIndonesianAudio } from "../lib/piper";
 import {
-  defaultAccountPreferences,
   readAccountPreferences,
   writeAccountPreferences,
   type AccountPreferences,
 } from "../lib/account-storage";
 
 export function AccountSettingsView({ userId }: { userId: string }) {
-  const [prefs, setPrefs] = useState<AccountPreferences>(defaultAccountPreferences);
+  const [prefs, setPrefs] = useState<AccountPreferences>(() => readAccountPreferences(userId));
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
   const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setPrefs(readAccountPreferences(userId));
-
     return () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = null;
     };
-  }, [userId]);
+  }, []);
 
   const update = (key: keyof AccountPreferences, value: boolean) => {
     setPrefs((current) => {
