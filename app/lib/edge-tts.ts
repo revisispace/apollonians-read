@@ -8,6 +8,9 @@ export const isEdgeTtsConfigured = Boolean(endpoint);
 
 const SEGMENT_LIMIT = 3000;
 const POLL_INTERVAL_MS = 3000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const JOB_TIMEOUT_MS = 5 * 60_000;
+const TRANSIENT_RETRIES = 2;
 
 export type EdgeVoice = {
   id: string;
@@ -40,7 +43,7 @@ const existingOracleVoices: EdgeVoice[] = [
 ];
 
 function sleep(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  return new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 }
 
 function mergeIntoSegments(text: string, limit = SEGMENT_LIMIT) {
@@ -76,9 +79,29 @@ async function readError(response: Response) {
   return new Error(problem?.detail ?? problem?.error ?? `Layanan Edge TTS gagal (${response.status}).`);
 }
 
-async function authedFetch(token: string, path: string, init?: RequestInit) {
+function isTransientStatus(status: number) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Permintaan Edge TTS melewati batas waktu. Coba lanjutkan proses; bagian yang sudah selesai tetap tersimpan.");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+}
+
+async function authedFetch(token: string, path: string, init?: RequestInit, retries = 0) {
   if (!endpoint) throw new Error("Endpoint Edge TTS belum dikonfigurasi.");
-  const response = await fetch(`${endpoint}${path}`, {
+  const request: RequestInit = {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -86,14 +109,27 @@ async function authedFetch(token: string, path: string, init?: RequestInit) {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },
-  });
-  if (!response.ok) throw await readError(response);
-  return response;
+  };
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(`${endpoint}${path}`, request);
+      if (response.ok) return response;
+      if (attempt < retries && isTransientStatus(response.status)) {
+        await sleep(750 * (attempt + 1));
+        continue;
+      }
+      throw await readError(response);
+    } catch (error) {
+      if (attempt >= retries || (error instanceof Error && error.message.includes("batas waktu"))) throw error;
+      await sleep(750 * (attempt + 1));
+    }
+  }
 }
 
 export async function getEdgeHealth() {
   if (!endpoint) throw new Error("Endpoint Edge TTS belum dikonfigurasi.");
-  const response = await fetch(`${endpoint}/health`, { cache: "no-store" });
+  const response = await fetchWithTimeout(`${endpoint}/health`, { cache: "no-store" });
   if (!response.ok) throw await readError(response);
   return response.json() as Promise<{ ok: boolean; engine?: string; loaded?: boolean }>;
 }
@@ -114,17 +150,21 @@ async function generateOneSegment(text: string, voice: string, bookId?: string) 
     }),
   });
   const { job_id: jobId } = await startResponse.json() as { job_id: string };
+  if (!jobId) throw new Error("Server Edge TTS tidak mengembalikan ID pekerjaan.");
 
-  for (;;) {
+  const deadline = Date.now() + JOB_TIMEOUT_MS;
+  while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    const statusResponse = await authedFetch(token, `/v1/tts/${jobId}/status`);
+    const statusResponse = await authedFetch(token, `/v1/tts/${jobId}/status`, undefined, TRANSIENT_RETRIES);
     const status = await statusResponse.json() as EdgeJobStatus;
     if (status.status === "failed") throw new Error(status.error ?? "Edge TTS gagal membuat audio.");
-    if (status.status === "done") break;
+    if (status.status === "done") {
+      const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`, undefined, TRANSIENT_RETRIES);
+      return audioResponse.blob();
+    }
   }
 
-  const audioResponse = await authedFetch(token, `/v1/tts/${jobId}/audio`);
-  return audioResponse.blob();
+  throw new Error("Pembuatan satu bagian audio melewati batas 5 menit. Jalankan lagi untuk melanjutkan dari bagian terakhir yang tersimpan.");
 }
 
 export async function previewEdgeVoice(options: EdgeVoiceOptions) {
@@ -143,14 +183,14 @@ export async function generateEdgeAudio(
   const sourceChunks = textChunks(text);
   const selectedChunks = sourceChunks.slice(0, maximumChunks);
   const segments = mergeIntoSegments(selectedChunks.join(" "));
+  const completedSegments = Math.min(Math.max(0, Math.floor(skipCount)), segments.length);
   const output: Blob[] = [];
 
-  for (let index = 0; index < segments.length; index += 1) {
-    if (index < skipCount) {
-      onProgress?.({ phase: "audio", completed: index + 1, total: segments.length });
-      continue;
-    }
+  if (completedSegments > 0) {
+    onProgress?.({ phase: "audio", completed: completedSegments, total: segments.length });
+  }
 
+  for (let index = completedSegments; index < segments.length; index += 1) {
     onProgress?.({ phase: "model", completed: index, total: segments.length });
     const blob = await generateOneSegment(segments[index], options.voice, bookId);
     output.push(blob);
@@ -162,5 +202,6 @@ export async function generateEdgeAudio(
     chunks: output,
     truncated: sourceChunks.length > selectedChunks.length,
     totalSegments: segments.length,
+    resumedFrom: completedSegments,
   };
 }
