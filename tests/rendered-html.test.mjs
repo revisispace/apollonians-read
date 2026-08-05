@@ -40,13 +40,14 @@ test("scopes browser storage to the authenticated account", async () => {
   assert.match(account, /Keluar dan hapus data perangkat/);
 });
 
-test("uses Edge TTS as the authenticated online engine", async () => {
-  const [client, studio, app, admin, usage, env, workflow] = await Promise.all([
+test("uses Edge TTS while preserving the existing Supabase contract", async () => {
+  const [client, studio, app, admin, usage, schema, env, workflow] = await Promise.all([
     readFile(new URL("app/lib/edge-tts.ts", projectRoot), "utf8"),
     readFile(new URL("app/components/EdgeStudioView.tsx", projectRoot), "utf8"),
     readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
     readFile(new URL("app/lib/admin.ts", projectRoot), "utf8"),
     readFile(new URL("app/lib/usage.ts", projectRoot), "utf8"),
+    readFile(new URL("supabase/schema.sql", projectRoot), "utf8"),
     readFile(new URL(".env.example", projectRoot), "utf8"),
     readFile(new URL(".github/workflows/deploy-pages.yml", projectRoot), "utf8"),
   ]);
@@ -60,7 +61,11 @@ test("uses Edge TTS as the authenticated online engine", async () => {
   assert.match(studio, /Piper tetap tersedia sebagai fallback lokal/);
   assert.match(app, /<EdgeStudioView onCreated=\{createdBook\}/);
   assert.match(admin, /edge_tts_enabled/);
-  assert.match(usage, /"piper" \| "edge"/);
+  assert.match(admin, /qwen_enabled: settings\.edge_tts_enabled/);
+  assert.match(usage, /"piper" \| "qwen"/);
+  assert.match(schema, /qwen_enabled/);
+  assert.match(schema, /engine in \('piper', 'qwen'\)/);
+  assert.doesNotMatch(schema, /edge_tts_enabled/);
   assert.match(env, /NEXT_PUBLIC_EDGE_TTS_ENDPOINT=https:\/\/apollonians\.duckdns\.org/);
   assert.doesNotMatch(env, /^\s*(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|SB_SECRET_KEY)\s*=/im);
   assert.doesNotMatch(env, /^\s*NEXT_PUBLIC_QWEN_TTS_ENDPOINT\s*=/im);
@@ -68,13 +73,12 @@ test("uses Edge TTS as the authenticated online engine", async () => {
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_QWEN_TTS_ENDPOINT/);
 });
 
-test("provides a secure Oracle Edge TTS service and database migration", async () => {
-  const [service, serviceEnv, requirements, unit, migration] = await Promise.all([
+test("provides a secure Oracle Edge TTS service without a database migration", async () => {
+  const [service, serviceEnv, requirements, unit] = await Promise.all([
     readFile(new URL("services/edge-tts/main.py", projectRoot), "utf8"),
     readFile(new URL("services/edge-tts/.env.example", projectRoot), "utf8"),
     readFile(new URL("services/edge-tts/requirements.txt", projectRoot), "utf8"),
     readFile(new URL("services/edge-tts/apollonians-edge-tts.service", projectRoot), "utf8"),
-    readFile(new URL("supabase/migrations/20260805_edge_tts.sql", projectRoot), "utf8"),
   ]);
 
   assert.match(service, /os\.environ\["SUPABASE_URL"\]/);
@@ -82,14 +86,11 @@ test("provides a secure Oracle Edge TTS service and database migration", async (
   assert.match(service, /@app\.get\("\/api\/voices"\)/);
   assert.match(service, /@app\.post\("\/api\/tts\/preview"\)/);
   assert.match(service, /@app\.post\("\/api\/tts\/generate"\)/);
-  assert.match(service, /requested_engine": "edge"/);
+  assert.match(service, /requested_engine": "qwen"/);
   assert.doesNotMatch(service, /mvjcoumfhtrntcxfpuda|sb_publishable_jsyskn/);
   assert.doesNotMatch(serviceEnv, /^\s*(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|SB_SECRET_KEY)\s*=/im);
   assert.match(requirements, /edge-tts==/);
   assert.match(unit, /EnvironmentFile=\/etc\/apollonians-read\/edge-tts\.env/);
-  assert.match(migration, /engine in \('piper', 'edge'\)/);
-  assert.match(migration, /edge_tts_enabled/);
-  assert.match(migration, /where engine = 'qwen'/);
 });
 
 test("runs one PR CI and protects deployment", async () => {
