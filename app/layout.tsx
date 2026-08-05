@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./responsive.css";
+import "./mobile-player.css";
 import { AuthProvider } from "./lib/auth";
 import { ServiceWorkerRegistration } from "./components/ServiceWorkerRegistration";
 
