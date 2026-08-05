@@ -1,28 +1,15 @@
--- Apollonians Read schema untuk instalasi baru.
--- File buku, teks lengkap, dan audio tetap berada di perangkat pengguna.
+-- Jalankan melalui Supabase Dashboard -> SQL Editor.
+-- File buku dan audio tetap berada di perangkat; Supabase menyimpan akun,
+-- metadata katalog, role, dan metrik konsumsi saja.
 
 create schema if not exists private;
-
-create table if not exists public.app_settings (
-  id boolean primary key default true check (id),
-  edge_tts_enabled boolean not null default true,
-  default_daily_character_limit integer not null default 200000
-    check (default_daily_character_limit between 0 and 5000000),
-  global_daily_character_limit integer not null default 2000000
-    check (global_daily_character_limit between 0 and 50000000),
-  updated_at timestamptz not null default now(),
-  updated_by uuid references auth.users(id) on delete set null
-);
-
-insert into public.app_settings (id) values (true) on conflict (id) do nothing;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   role text not null default 'user' check (role in ('user', 'superadmin')),
   status text not null default 'active' check (status in ('active', 'suspended')),
-  daily_character_limit integer not null default 200000
-    check (daily_character_limit between 0 and 5000000),
+  daily_character_limit integer not null default 200000 check (daily_character_limit between 0 and 5000000),
   created_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now()
 );
@@ -45,21 +32,27 @@ create table if not exists public.usage_events (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   book_id uuid references public.books(id) on delete set null,
-  engine text not null check (engine in ('piper', 'edge')),
+  engine text not null check (engine in ('piper', 'qwen')),
   characters integer not null check (characters >= 0),
-  status text not null default 'completed'
-    check (status in ('reserved', 'completed', 'failed')),
+  status text not null default 'completed' check (status in ('reserved', 'completed', 'failed')),
   created_at timestamptz not null default now()
 );
 
-create index if not exists books_user_created_idx
-  on public.books (user_id, created_at desc);
-create index if not exists usage_events_user_created_idx
-  on public.usage_events (user_id, created_at desc);
-create index if not exists usage_events_created_idx
-  on public.usage_events (created_at desc);
-create index if not exists profiles_last_seen_idx
-  on public.profiles (last_seen_at desc);
+create table if not exists public.app_settings (
+  id boolean primary key default true check (id),
+  qwen_enabled boolean not null default false,
+  default_daily_character_limit integer not null default 200000 check (default_daily_character_limit between 0 and 5000000),
+  global_daily_character_limit integer not null default 2000000 check (global_daily_character_limit between 0 and 50000000),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null
+);
+
+insert into public.app_settings (id) values (true) on conflict (id) do nothing;
+
+create index if not exists books_user_created_idx on public.books (user_id, created_at desc);
+create index if not exists usage_events_user_created_idx on public.usage_events (user_id, created_at desc);
+create index if not exists usage_events_created_idx on public.usage_events (created_at desc);
+create index if not exists profiles_last_seen_idx on public.profiles (last_seen_at desc);
 
 create or replace function private.is_superadmin()
 returns boolean
@@ -69,11 +62,8 @@ security definer
 set search_path = ''
 as $$
   select exists (
-    select 1
-    from public.profiles
-    where id = (select auth.uid())
-      and role = 'superadmin'
-      and status = 'active'
+    select 1 from public.profiles
+    where id = (select auth.uid()) and role = 'superadmin' and status = 'active'
   );
 $$;
 
@@ -92,10 +82,7 @@ begin
   values (
     new.id,
     new.email,
-    coalesce(
-      (select default_daily_character_limit from public.app_settings where id = true),
-      200000
-    )
+    coalesce((select default_daily_character_limit from public.app_settings where id = true), 200000)
   )
   on conflict (id) do update set email = excluded.email;
   return new;
@@ -138,47 +125,33 @@ declare
   global_limit integer;
   used_by_user bigint;
   used_globally bigint;
-  edge_is_enabled boolean;
+  qwen_is_enabled boolean;
   event_id bigint;
 begin
-  if caller_id is null then
-    raise exception 'Login diperlukan';
-  end if;
+  if caller_id is null then raise exception 'Login diperlukan'; end if;
   if requested_characters < 1 or requested_characters > 1000000 then
     raise exception 'Ukuran permintaan tidak valid';
   end if;
-  if requested_engine not in ('piper', 'edge') then
-    raise exception 'Mesin tidak valid';
-  end if;
+  if requested_engine not in ('piper', 'qwen') then raise exception 'Mesin tidak valid'; end if;
   if requested_book_id is not null and not exists (
-    select 1 from public.books
-    where id = requested_book_id and user_id = caller_id
+    select 1 from public.books where id = requested_book_id and user_id = caller_id
   ) then
     raise exception 'Buku tidak ditemukan';
   end if;
 
   select daily_character_limit into user_limit
-  from public.profiles
-  where id = caller_id and status = 'active'
-  for update;
-  if user_limit is null then
-    raise exception 'Akun tidak aktif';
-  end if;
+  from public.profiles where id = caller_id and status = 'active' for update;
+  if user_limit is null then raise exception 'Akun tidak aktif'; end if;
 
-  select global_daily_character_limit, edge_tts_enabled
-  into global_limit, edge_is_enabled
-  from public.app_settings
-  where id = true
-  for update;
-
-  if requested_engine = 'edge' and not coalesce(edge_is_enabled, false) then
-    raise exception 'Edge TTS sedang dinonaktifkan';
+  select global_daily_character_limit, qwen_enabled into global_limit, qwen_is_enabled
+  from public.app_settings where id = true for update;
+  if requested_engine = 'qwen' and not coalesce(qwen_is_enabled, false) then
+    raise exception 'Qwen sedang dinonaktifkan';
   end if;
 
   select coalesce(sum(characters), 0) into used_by_user
   from public.usage_events
-  where user_id = caller_id
-    and status in ('reserved', 'completed')
+  where user_id = caller_id and status in ('reserved', 'completed')
     and created_at >= date_trunc('day', now());
 
   select coalesce(sum(characters), 0) into used_globally
@@ -193,28 +166,14 @@ begin
     raise exception 'Batas penggunaan aplikasi hari ini tercapai';
   end if;
 
-  insert into public.usage_events (
-    user_id,
-    book_id,
-    engine,
-    characters,
-    status
-  ) values (
-    caller_id,
-    requested_book_id,
-    requested_engine,
-    requested_characters,
-    'reserved'
-  ) returning id into event_id;
-
+  insert into public.usage_events (user_id, book_id, engine, characters, status)
+  values (caller_id, requested_book_id, requested_engine, requested_characters, 'reserved')
+  returning id into event_id;
   return event_id;
 end;
 $$;
 
-create or replace function public.finish_generation(
-  event_id bigint,
-  succeeded boolean
-)
+create or replace function public.finish_generation(event_id bigint, succeeded boolean)
 returns void
 language sql
 security definer
@@ -222,28 +181,7 @@ set search_path = ''
 as $$
   update public.usage_events
   set status = case when succeeded then 'completed' else 'failed' end
-  where id = event_id
-    and user_id = (select auth.uid())
-    and status = 'reserved';
-$$;
-
-create or replace function public.get_quota_info()
-returns table (daily_limit integer, used_today bigint)
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select
-    p.daily_character_limit,
-    coalesce(sum(u.characters) filter (
-      where u.status in ('reserved', 'completed')
-        and u.created_at >= date_trunc('day', now())
-    ), 0)::bigint
-  from public.profiles p
-  left join public.usage_events u on u.user_id = p.id
-  where p.id = (select auth.uid())
-  group by p.daily_character_limit;
+  where id = event_id and user_id = (select auth.uid()) and status = 'reserved';
 $$;
 
 create or replace function public.promote_superadmin(account_email text)
@@ -253,12 +191,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  update public.profiles
-  set role = 'superadmin', status = 'active'
+  update public.profiles set role = 'superadmin', status = 'active'
   where lower(email) = lower(account_email);
-  if not found then
-    raise exception 'Akun dengan email tersebut belum terdaftar';
-  end if;
+  if not found then raise exception 'Akun dengan email tersebut belum terdaftar'; end if;
 end;
 $$;
 
@@ -267,12 +202,9 @@ revoke all on function public.promote_superadmin(text) from public, anon, authen
 revoke all on function public.touch_profile() from public, anon;
 revoke all on function public.reserve_generation(integer, text, uuid) from public, anon;
 revoke all on function public.finish_generation(bigint, boolean) from public, anon;
-revoke all on function public.get_quota_info() from public, anon;
-
 grant execute on function public.touch_profile() to authenticated;
 grant execute on function public.reserve_generation(integer, text, uuid) to authenticated;
 grant execute on function public.finish_generation(bigint, boolean) to authenticated;
-grant execute on function public.get_quota_info() to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.books enable row level security;
@@ -318,8 +250,7 @@ create policy "Users can read own usage"
 
 drop policy if exists "Authenticated users read app settings" on public.app_settings;
 create policy "Authenticated users read app settings"
-  on public.app_settings for select to authenticated
-  using (true);
+  on public.app_settings for select to authenticated using (true);
 
 drop policy if exists "Superadmin updates app settings" on public.app_settings;
 create policy "Superadmin updates app settings"
@@ -327,7 +258,6 @@ create policy "Superadmin updates app settings"
   using ((select private.is_superadmin()))
   with check ((select private.is_superadmin()));
 
-grant select on public.profiles, public.books, public.usage_events, public.app_settings
-  to authenticated;
+grant select on public.profiles, public.books, public.usage_events, public.app_settings to authenticated;
 grant insert, update, delete on public.books to authenticated;
 grant update on public.profiles, public.app_settings to authenticated;
