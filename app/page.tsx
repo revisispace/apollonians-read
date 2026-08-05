@@ -1,5 +1,5 @@
-import { AudiobookApp } from "./components/AudiobookApp";
+import { AuthGate } from "./components/AuthGate";
 
 export default function Home() {
-  return <AudiobookApp />;
+  return <AuthGate />;
 }
