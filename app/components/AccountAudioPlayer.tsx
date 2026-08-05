@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Moon, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import { Bookmark, Moon, Pause, Play, RotateCcw, RotateCw, Trash2 } from "lucide-react";
 import type { Book } from "../lib/content";
 import { getLocalBook } from "../lib/local-db";
-import { readPlaybackPosition, writePlaybackPosition } from "../lib/account-storage";
+import {
+  readAudioBookmarks,
+  readPlaybackPosition,
+  writeAudioBookmarks,
+  writePlaybackPosition,
+  type AudioBookmark,
+} from "../lib/account-storage";
 import { BookCover } from "./BookCover";
 
 const formatTime = (seconds: number) => {
@@ -29,6 +35,8 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
   const [speed, setSpeed] = useState(1);
   const [sleepMode, setSleepMode] = useState<SleepMode>("off");
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
+  const [bookmarks, setBookmarks] = useState<AudioBookmark[]>([]);
+  const [selectedBookmark, setSelectedBookmark] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -40,6 +48,8 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     getLocalBook(book.id)
       .then((asset) => {
         if (!active) return;
+        setBookmarks(readAudioBookmarks(userId, book.id));
+        setSelectedBookmark("");
         setPlaying(false);
         setChunk(0);
         setElapsed(0);
@@ -155,6 +165,45 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
     setSleepSecondsLeft(next === "off" || next === "end" ? null : Number(next) * 60);
   };
 
+  const addBookmark = () => {
+    const audio = audioRef.current;
+    if (!audio || !chunks) return;
+    const next: AudioBookmark = {
+      id: crypto.randomUUID(),
+      chunk,
+      currentTime: audio.currentTime,
+      label: `Bagian ${chunk + 1} · ${formatTime(audio.currentTime)}`,
+      createdAt: Date.now(),
+    };
+    const updated = [...bookmarks, next].sort((left, right) => left.chunk - right.chunk || left.currentTime - right.currentTime);
+    setBookmarks(updated);
+    setSelectedBookmark(next.id);
+    writeAudioBookmarks(userId, book.id, updated);
+    setMessage(`Bookmark disimpan pada ${next.label}`);
+  };
+
+  const jumpToBookmark = (bookmarkId: string) => {
+    setSelectedBookmark(bookmarkId);
+    const bookmark = bookmarks.find((item) => item.id === bookmarkId);
+    const audio = audioRef.current;
+    if (!bookmark || !audio || bookmark.chunk >= urlsRef.current.length) return;
+    setChunk(bookmark.chunk);
+    audio.src = urlsRef.current[bookmark.chunk];
+    audio.currentTime = bookmark.currentTime;
+    audio.playbackRate = speed;
+    setElapsed(bookmark.currentTime);
+    setMessage(`Berpindah ke ${bookmark.label}`);
+  };
+
+  const deleteBookmark = () => {
+    if (!selectedBookmark) return;
+    const updated = bookmarks.filter((item) => item.id !== selectedBookmark);
+    setBookmarks(updated);
+    setSelectedBookmark("");
+    writeAudioBookmarks(userId, book.id, updated);
+    setMessage("Bookmark dihapus");
+  };
+
   return (
     <section className="audio-player" aria-label="Pemutar audio">
       <audio
@@ -191,6 +240,15 @@ export function AccountAudioPlayer({ book, userId }: { book: Book; userId: strin
       </div>
       <div className="player-tools">
         <button className="speed-button" onClick={cycleSpeed}>{speed}×</button>
+        <button className="speed-button" disabled={!chunks} onClick={addBookmark} aria-label="Simpan bookmark"><Bookmark size={15} /></button>
+        <label className="sleep-button">
+          <Bookmark size={15} />
+          <select value={selectedBookmark} onChange={(event) => jumpToBookmark(event.target.value)} aria-label="Daftar bookmark">
+            <option value="">{bookmarks.length ? `${bookmarks.length} bookmark` : "Bookmark"}</option>
+            {bookmarks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </label>
+        <button className="speed-button" disabled={!selectedBookmark} onClick={deleteBookmark} aria-label="Hapus bookmark"><Trash2 size={15} /></button>
         <label className={`sleep-button ${sleepMode !== "off" ? "active" : ""}`}>
           <Moon size={16} />
           <select value={sleepMode} onChange={(event) => changeSleepMode(event.target.value as SleepMode)} aria-label="Sleep timer">

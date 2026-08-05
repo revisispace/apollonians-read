@@ -4,6 +4,14 @@ export type PlaybackPosition = {
   updatedAt: number;
 };
 
+export type AudioBookmark = {
+  id: string;
+  chunk: number;
+  currentTime: number;
+  label: string;
+  createdAt: number;
+};
+
 export type AccountPreferences = {
   autoDownload: boolean;
   normalize: boolean;
@@ -22,6 +30,10 @@ function accountPrefix(userId: string) {
 
 export function playbackPositionKey(userId: string, bookId: string) {
   return `${accountPrefix(userId)}-position-${bookId}`;
+}
+
+export function bookmarksKey(userId: string, bookId: string) {
+  return `${accountPrefix(userId)}-bookmarks-${bookId}`;
 }
 
 export function preferencesKey(userId: string) {
@@ -48,6 +60,25 @@ export function writePlaybackPosition(userId: string, bookId: string, position: 
     localStorage.setItem(playbackPositionKey(userId, bookId), JSON.stringify(position));
   } catch {
     // Playback position is best-effort local state.
+  }
+}
+
+export function readAudioBookmarks(userId: string, bookId: string) {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const value = localStorage.getItem(bookmarksKey(userId, bookId));
+    return value ? (JSON.parse(value) as AudioBookmark[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeAudioBookmarks(userId: string, bookId: string, bookmarks: AudioBookmark[]) {
+  try {
+    localStorage.setItem(bookmarksKey(userId, bookId), JSON.stringify(bookmarks));
+  } catch {
+    // Bookmarks remain available in memory when storage is unavailable.
   }
 }
 
