@@ -32,7 +32,7 @@ test("requires Supabase authentication before rendering the application", async 
   assert.doesNotMatch(account, /Mode lokal aktif/);
 });
 
-test("scopes IndexedDB, playback, preferences, and activity to the authenticated account", async () => {
+test("scopes IndexedDB, playback, bookmarks, preferences, and activity to the authenticated account", async () => {
   const [database, storage, app, player, settings, account] = await Promise.all([
     readFile(new URL("app/lib/local-db.ts", projectRoot), "utf8"),
     readFile(new URL("app/lib/account-storage.ts", projectRoot), "utf8"),
@@ -51,6 +51,9 @@ test("scopes IndexedDB, playback, preferences, and activity to the authenticated
   assert.match(database, /clearCurrentUserLocalBooks/);
   assert.match(storage, /apollonians-user-\$\{userId\}/);
   assert.match(storage, /playbackPositionKey/);
+  assert.match(storage, /bookmarksKey/);
+  assert.match(storage, /readAudioBookmarks/);
+  assert.match(storage, /writeAudioBookmarks/);
   assert.match(storage, /preferencesKey/);
   assert.match(storage, /activityKey/);
   assert.match(storage, /clearAccountLocalStorage/);
@@ -60,6 +63,11 @@ test("scopes IndexedDB, playback, preferences, and activity to the authenticated
   assert.match(app, /<AccountSettingsView key=\{userId\} userId=\{userId\}/);
   assert.match(player, /readPlaybackPosition\(userId, book\.id\)/);
   assert.match(player, /writePlaybackPosition\(userId, book\.id/);
+  assert.match(player, /readAudioBookmarks\(userId, book\.id\)/);
+  assert.match(player, /writeAudioBookmarks\(userId, book\.id, updated\)/);
+  assert.match(player, /Simpan bookmark/);
+  assert.match(player, /Daftar bookmark/);
+  assert.match(player, /Hapus bookmark/);
   assert.match(settings, /readAccountPreferences\(userId\)/);
   assert.match(settings, /writeAccountPreferences\(userId, next\)/);
   assert.match(account, /Keluar dan hapus data perangkat/);
