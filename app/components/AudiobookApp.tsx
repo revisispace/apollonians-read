@@ -29,16 +29,13 @@ export function AudiobookApp() {
   const [activityBadge, setActivityBadge] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [personalBooks, setPersonalBooks] = useState<Book[]>([]);
-  const [recentActivities, setRecentActivities] = useState<string[]>([]);
+  const [recentActivities, setRecentActivities] = useState<string[]>(() => userId ? readAccountActivity(userId) : []);
   const [storageMessage, setStorageMessage] = useState("");
 
   useEffect(() => {
     if (!userId) return;
 
     let activeRequest = true;
-    setPersonalBooks([]);
-    setSelectedBook(null);
-    setRecentActivities(readAccountActivity(userId));
 
     const loadAccountLibrary = async () => {
       try {
@@ -160,7 +157,7 @@ export function AudiobookApp() {
           )}
           {active === "studio" && <StudioView onCreated={createdBook} />}
           {active === "activity" && <ActivityView recent={recentActivities} />}
-          {active === "settings" && userId && <AccountSettingsView userId={userId} />}
+          {active === "settings" && userId && <AccountSettingsView key={userId} userId={userId} />}
           {active === "admin" && auth.isSuperadmin && <AdminView />}
         </main>
         {selectedBook && userId && <AccountAudioPlayer book={selectedBook} userId={userId} />}
