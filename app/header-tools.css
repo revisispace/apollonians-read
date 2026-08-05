@@ -1,0 +1,82 @@
+.header-search { position: relative; width: min(440px, 48vw); }
+.header-search .search-field { width: 100%; }
+.search-clear { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.search-clear:hover { background: rgba(47,98,87,.08); color: var(--forest); }
+.mobile-search-button { display: none; }
+.notification-wrap { position: relative; margin-left: auto; }
+.notification-button { margin-left: 0; }
+.notification-dot { position: absolute; top: -4px; right: -5px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--paper); border-radius: 12px; background: var(--coral); color: white; font-size: 8px; font-weight: 800; line-height: 1; box-sizing: border-box; }
+
+.search-popover,
+.notification-popover {
+  position: absolute;
+  z-index: 95;
+  top: calc(100% + 10px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: 0 22px 60px rgba(25,32,28,.18);
+}
+.search-popover { left: 0; width: min(520px, calc(100vw - 32px)); }
+.notification-popover { right: 0; width: min(390px, calc(100vw - 32px)); }
+.search-popover-head,
+.notification-popover-head { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.search-popover-head > button,
+.notification-popover-head > button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #f0ece4; color: var(--forest); }
+.notification-popover-head > button:disabled { opacity: .38; cursor: not-allowed; }
+.notification-popover-head strong,
+.notification-popover-head small { display: block; }
+.notification-popover-head small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.search-popover > p,
+.notification-popover > p { margin: 0; padding: 22px 18px; color: var(--muted); line-height: 1.5; }
+.search-results { max-height: min(440px, 60vh); overflow-y: auto; }
+.search-results > button,
+.notification-popover > button { width: 100%; min-height: 62px; display: flex; align-items: center; gap: 12px; padding: 11px 16px; border: 0; border-bottom: 1px solid #ece7dd; background: transparent; color: inherit; text-align: left; }
+.search-results > button:hover,
+.notification-popover > button:hover { background: #f7f3eb; }
+.search-results > button svg { flex: none; color: var(--forest); }
+.search-results span,
+.notification-popover > button > span:last-child { min-width: 0; }
+.search-results strong,
+.search-results small,
+.notification-popover > button strong,
+.notification-popover > button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-results strong,
+.notification-popover > button strong { font-family: var(--font-serif), serif; font-size: 14px; font-weight: 500; }
+.search-results small,
+.notification-popover > button small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.notification-popover > button.unread { background: #edf3ef; }
+.notification-state { width: 8px; height: 8px; flex: none; border-radius: 50%; background: transparent; }
+.notification-popover > button.unread .notification-state { background: var(--coral); box-shadow: 0 0 0 4px rgba(217,117,79,.12); }
+
+@media (max-width: 760px) {
+  .app-header { overflow: visible; }
+  .header-search { position: static; width: 0; }
+  .header-search .search-field { display: none; }
+  .mobile-search-button { display: grid; margin-left: auto; }
+  .notification-wrap { margin-left: 0; }
+  .search-popover,
+  .notification-popover {
+    position: fixed;
+    top: calc(59px + env(safe-area-inset-top));
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: min(70dvh, 560px);
+  }
+  .header-search.is-open .search-field {
+    position: fixed;
+    z-index: 96;
+    top: calc(66px + env(safe-area-inset-top));
+    left: 18px;
+    right: 18px;
+    width: auto;
+    display: flex;
+    background: white;
+  }
+  .header-search.is-open .search-popover { padding-top: 52px; }
+  .search-popover-head { position: absolute; inset: 0 0 auto; }
+  .search-results { max-height: calc(70dvh - 108px); }
+  .notification-popover { overflow-y: auto; }
+}
