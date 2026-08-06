@@ -10,7 +10,7 @@ test("scanned PDFs fall back to browser OCR", async () => {
   assert.match(parser, /await ocrPdf\(pdf, options\.onProgress\)/);
   assert.match(parser, /tesseract\.js@\$\{TESSERACT_VERSION\}/);
   assert.match(parser, /createWorker\("ind\+eng"/);
-  assert.match(parser, /page\.render\(\{ canvasContext: context, viewport \}\)/);
+  assert.match(parser, /page\.render\(\{ canvas, canvasContext: context, viewport \}\)/);
   assert.match(parser, /PDF berupa hasil scan/);
 });
 
