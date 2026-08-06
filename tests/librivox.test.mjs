@@ -17,15 +17,16 @@ test("adds LibriVox to application navigation and routing", async () => {
   assert.match(header, /librivox: "LibriVox"/);
 });
 
-test("uses official LibriVox catalog fields with JSONP fallback", async () => {
+test("uses Internet Archive as the browser-safe LibriVox catalog source", async () => {
   const client = await readFile(new URL("app/lib/librivox.ts", root), "utf8");
-  assert.match(client, /https:\/\/librivox\.org\/api\/feed\/audiobooks/);
-  assert.match(client, /extended: "1"/);
-  assert.match(client, /coverart/);
-  assert.match(client, /listen_url/);
-  assert.match(client, /url_text_source/);
-  assert.match(client, /jsonpParams\.set\("format", "json"\)/);
-  assert.match(client, /jsonpParams\.set\("callback", callback\)/);
+  assert.match(client, /archive\.org\/advancedsearch\.php/);
+  assert.match(client, /archive\.org\/metadata/);
+  assert.match(client, /archive\.org\/download/);
+  assert.match(client, /collection:\(librivoxaudio\)/);
+  assert.match(client, /identifier/);
+  assert.match(client, /creator/);
+  assert.match(client, /subject/);
+  assert.match(client, /audioUrl/);
 });
 
 test("provides streaming chapters, progress, bookmarks, and honest subtitle limitations", async () => {
