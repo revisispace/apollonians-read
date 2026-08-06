@@ -66,7 +66,8 @@ test("scopes IndexedDB, playback, bookmarks, preferences, and activity to the au
   assert.match(player, /readAudioBookmarks\(userId, book\.id\)/);
   assert.match(player, /writeAudioBookmarks\(userId, book\.id, updated\)/);
   assert.match(player, /const addBookmark/);
-  assert.match(player, /Daftar bookmark/);
+  assert.match(player, /Bookmark dan catatan/);
+  assert.match(player, /const saveBookmarkNote/);
   assert.match(player, /const deleteBookmark/);
   assert.match(settings, /readAccountPreferences\(userId\)/);
   assert.match(settings, /writeAccountPreferences\(userId, next\)/);

@@ -8,6 +8,7 @@ import "./storage-management.css";
 import "./chapter-management.css";
 import "./librivox.css";
 import "./unified-library.css";
+import "./bookmark-notes.css";
 import "./mobile-menu.css";
 import { AuthProvider } from "./lib/auth";
 import { ServiceWorkerRegistration } from "./components/ServiceWorkerRegistration";

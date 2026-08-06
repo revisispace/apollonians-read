@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, BookOpenText, ChevronDown, ListMusic, Moon, Pause, Play, RotateCcw, RotateCw, Search, SkipBack, SkipForward, Trash2, X } from "lucide-react";
+import { Bookmark, BookOpenText, ChevronDown, ListMusic, Moon, Pause, Pencil, Play, RotateCcw, RotateCw, Search, SkipBack, SkipForward, Trash2, X } from "lucide-react";
 import type { Book } from "../lib/content";
 import { detectChapters, type DetectedChapter } from "../lib/chapters";
 import { edgeAudioSegments, estimatedSentenceIndex } from "../lib/edge-audio-segments";
@@ -13,6 +13,8 @@ const time = (seconds: number) => Number.isFinite(seconds) ? `${Math.floor(secon
 const sentences = (value: string) => value.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((item) => item.trim()).filter(Boolean) ?? [];
 type Panel = "chapters" | "bookmarks" | null;
 type SleepMode = "off" | "15" | "30" | "60" | "end";
+
+type BookmarkGroup = { id: string; title: string; items: AudioBookmark[] };
 
 export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userId: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -31,6 +33,8 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
   const [fullOpen, setFullOpen] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [query, setQuery] = useState("");
+  const [editingBookmark, setEditingBookmark] = useState<string | null>(null);
+  const [draftNote, setDraftNote] = useState("");
   const [sleepMode, setSleepMode] = useState<SleepMode>("off");
   const [sleepLeft, setSleepLeft] = useState<number | null>(null);
   const hasAudio = chunks > 0;
@@ -46,7 +50,23 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
   const nextText = sentenceIndex + 1 < currentSentences.length ? currentSentences[sentenceIndex + 1] : sentences(audioTexts[chunk + 1] ?? "")[0] ?? "";
   const transcriptMapped = Boolean(audioTexts[chunk]);
   const filteredChapters = useMemo(() => query ? chapters.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())) : chapters, [chapters, query]);
-  const filteredBookmarks = useMemo(() => query ? bookmarks.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())) : bookmarks, [bookmarks, query]);
+  const filteredBookmarks = useMemo(() => {
+    const clean = query.trim().toLowerCase();
+    return clean ? bookmarks.filter((item) => `${item.label} ${item.chapterTitle ?? ""} ${item.note ?? ""}`.toLowerCase().includes(clean)) : bookmarks;
+  }, [bookmarks, query]);
+  const bookmarkGroups = useMemo<BookmarkGroup[]>(() => {
+    const groups = new Map<string, BookmarkGroup>();
+    for (const item of filteredBookmarks) {
+      const progress = chunks ? Math.min(1, item.chunk / chunks) : 0;
+      const chapter = item.chapterId ? chapters.find((entry) => entry.id === item.chapterId) : [...chapters].reverse().find((entry) => entry.progress <= progress);
+      const id = chapter?.id ?? item.chapterId ?? `part-${item.chunk}`;
+      const title = chapter?.title ?? item.chapterTitle ?? `Bagian ${item.chunk + 1}`;
+      const existing = groups.get(id) ?? { id, title, items: [] };
+      existing.items.push(item);
+      groups.set(id, existing);
+    }
+    return [...groups.values()];
+  }, [chapters, chunks, filteredBookmarks]);
 
   useEffect(() => {
     let active = true;
@@ -59,7 +79,7 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
       setBookmarks(readAudioBookmarks(userId, book.id));
       setChapters(asset?.text ? detectChapters(asset.text) : []);
       setAudioTexts(asset?.text ? edgeAudioSegments(asset.text).slice(0, asset.audioChunks.length) : []);
-      setFullOpen(false); setPanel(null); setPlaying(false); setElapsed(0); setDuration(0);
+      setFullOpen(false); setPanel(null); setPlaying(false); setElapsed(0); setDuration(0); setEditingBookmark(null);
       if (!asset?.audioChunks.length) {
         setChunks(0);
         setMessage(book.localOnly ? "Audio belum dibuat" : "Audio belum tersedia di perangkat ini");
@@ -141,15 +161,21 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
     const index = Math.max(0, chapters.findIndex((item) => item.id === activeChapter?.id));
     const target = chapters[index + direction]; if (target) jumpChapter(target);
   };
+  const persistBookmarks = (updated: AudioBookmark[]) => { setBookmarks(updated); writeAudioBookmarks(userId, book.id, updated); };
   const addBookmark = () => {
     const audio = audioRef.current; if (!audio || !hasAudio) return;
-    const item: AudioBookmark = { id: crypto.randomUUID(), chunk, currentTime: audio.currentTime, label: `${activeChapter?.title ?? `Bagian ${chunk + 1}`} · ${time(audio.currentTime)}`, createdAt: Date.now() };
-    const updated = [...bookmarks, item].sort((a, b) => a.chunk - b.chunk || a.currentTime - b.currentTime);
-    setBookmarks(updated); writeAudioBookmarks(userId, book.id, updated);
+    const chapterTitle = activeChapter?.title ?? `Bagian ${chunk + 1}`;
+    const item: AudioBookmark = { id: crypto.randomUUID(), chunk, currentTime: audio.currentTime, label: `${chapterTitle} · ${time(audio.currentTime)}`, chapterId: activeChapter?.id, chapterTitle, note: "", createdAt: Date.now() };
+    persistBookmarks([...bookmarks, item].sort((a, b) => a.chunk - b.chunk || a.currentTime - b.currentTime));
   };
-  const deleteBookmark = (id: string) => { const updated = bookmarks.filter((item) => item.id !== id); setBookmarks(updated); writeAudioBookmarks(userId, book.id, updated); };
+  const deleteBookmark = (id: string) => persistBookmarks(bookmarks.filter((item) => item.id !== id));
+  const beginEditBookmark = (item: AudioBookmark) => { setEditingBookmark(item.id); setDraftNote(item.note ?? ""); };
+  const saveBookmarkNote = (id: string) => {
+    persistBookmarks(bookmarks.map((item) => item.id === id ? { ...item, note: draftNote.trim().slice(0, 1000) } : item));
+    setEditingBookmark(null); setDraftNote("");
+  };
   const changeSleep = (value: SleepMode) => { setSleepMode(value); setSleepLeft(value === "off" || value === "end" ? null : Number(value) * 60); };
-  const openPanel = (value: Panel) => { setPanel(panel === value ? null : value); setQuery(""); };
+  const openPanel = (value: Panel) => { setPanel(panel === value ? null : value); setQuery(""); setEditingBookmark(null); };
   const progress = duration ? Math.min(100, elapsed / duration * 100) : 0;
 
   return <>
@@ -169,7 +195,7 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
         <article className="reader-transcript-v2"><div className="transcript-head"><span>{transcriptMapped ? "Teks bagian audio" : "Teks belum dipetakan"}</span><strong>{Math.round(overall * 100)}%</strong></div><div className="transcript-body">{previousText && <p className="context">{previousText}</p>}<p className="active">{activeText}</p>{nextText && <p className="context">{nextText}</p>}</div><small>{transcriptMapped ? `Teks dipetakan ke bagian audio ${chunk + 1}. Sorotan kalimat berdasarkan estimasi ritme, bukan timestamp TTS.` : "Audio lama ini belum memiliki pasangan teks yang dapat diverifikasi."}</small></article>
       </div>
       <div className="full-player-v2-dock"><div className="full-player-v2-timeline"><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(elapsed, duration || 0)} onChange={(event) => { if (audioRef.current) audioRef.current.currentTime = Number(event.target.value); }} /><div><small>{time(elapsed)}</small><small>Bagian {chunk + 1}/{chunks}</small><small>{time(duration)}</small></div></div><div className="full-player-v2-controls"><button onClick={() => moveChapter(-1)}><SkipBack size={24} /></button><button onClick={() => seek(-15)}><RotateCcw size={25} /><small>15</small></button><button className="main" onClick={toggle}>{playing ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}</button><button onClick={() => seek(30)}><RotateCw size={25} /><small>30</small></button><button onClick={() => moveChapter(1)}><SkipForward size={24} /></button></div><div className="full-player-v2-tools"><button onClick={() => setSpeed(speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1)}>{speed}×<small>Kecepatan</small></button><button onClick={() => openPanel("chapters")}><BookOpenText size={19} /><small>Bab</small></button><button onClick={() => openPanel("bookmarks")}><ListMusic size={19} /><small>Bookmark</small></button><label><Moon size={19} /><select value={sleepMode} onChange={(event) => changeSleep(event.target.value as SleepMode)}><option value="off">Off</option><option value="15">15 menit</option><option value="30">30 menit</option><option value="60">60 menit</option><option value="end">Akhir bagian</option></select><small>Timer</small></label></div></div>
-      {panel && <aside className="player-data-panel"><div className="head"><div><strong>{panel === "chapters" ? "Daftar bab" : "Daftar bookmark"}</strong><small>{panel === "chapters" ? `${chapters.length} bagian` : `${bookmarks.length} tersimpan`}</small></div><button onClick={() => setPanel(null)}><X size={18} /></button></div><label className="search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Cari ${panel === "chapters" ? "bab" : "bookmark"}`} /></label><div className="columns"><span>Nama</span><span>Posisi</span><span>Aksi</span></div><div className="rows">{panel === "chapters" ? filteredChapters.map((item, index) => <button key={item.id} className={item.id === activeChapter?.id ? "active" : ""} onClick={() => jumpChapter(item)}><span><b>{index + 1}</b><em>{item.title}</em></span><small>{Math.round(item.progress * 100)}%</small><i>Putar</i></button>) : filteredBookmarks.map((item) => <div key={item.id}><button onClick={() => { moveToChunk(item.chunk, item.currentTime, playing); setPanel(null); }}><span><b>{item.chunk + 1}</b><em>{item.label}</em></span><small>{time(item.currentTime)}</small><i>Putar</i></button><button onClick={() => deleteBookmark(item.id)} aria-label="Hapus bookmark"><Trash2 size={16} /></button></div>)}</div></aside>}
+      {panel && <aside className="player-data-panel"><div className="head"><div><strong>{panel === "chapters" ? "Daftar bab" : "Bookmark dan catatan"}</strong><small>{panel === "chapters" ? `${chapters.length} bagian` : `${bookmarks.length} tersimpan`}</small></div><button onClick={() => setPanel(null)}><X size={18} /></button></div><label className="search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Cari ${panel === "chapters" ? "bab" : "bookmark atau catatan"}`} /></label>{panel === "chapters" ? <><div className="columns"><span>Nama</span><span>Posisi</span><span>Aksi</span></div><div className="rows">{filteredChapters.map((item, index) => <button key={item.id} className={item.id === activeChapter?.id ? "active" : ""} onClick={() => jumpChapter(item)}><span><b>{index + 1}</b><em>{item.title}</em></span><small>{Math.round(item.progress * 100)}%</small><i>Putar</i></button>)}</div></> : <div className="bookmark-groups">{bookmarkGroups.map((group) => <section key={group.id} className="bookmark-group"><h3>{group.title}<small>{group.items.length} bookmark</small></h3>{group.items.map((item) => <article key={item.id} className="bookmark-note-card"><button className="bookmark-jump" onClick={() => { moveToChunk(item.chunk, item.currentTime, playing); setPanel(null); }}><span><b>{item.chunk + 1}</b><em>{item.label}</em></span><small>{time(item.currentTime)}</small><i>Putar</i></button>{editingBookmark === item.id ? <div className="bookmark-note-editor"><textarea autoFocus maxLength={1000} value={draftNote} onChange={(event) => setDraftNote(event.target.value)} placeholder="Tulis catatan untuk bookmark ini…"/><div><button onClick={() => saveBookmarkNote(item.id)}>Simpan catatan</button><button onClick={() => setEditingBookmark(null)}>Batal</button></div></div> : <div className="bookmark-note-copy"><p>{item.note || "Belum ada catatan."}</p><div><button onClick={() => beginEditBookmark(item)}><Pencil size={14}/> {item.note ? "Edit catatan" : "Tambah catatan"}</button><button onClick={() => deleteBookmark(item.id)} aria-label="Hapus bookmark"><Trash2 size={15}/> Hapus</button></div></div>}</article>)}</section>)}{!bookmarkGroups.length && <p className="bookmark-empty">Belum ada bookmark yang cocok.</p>}</div>}</aside>}
     </section>}
   </>;
 }
