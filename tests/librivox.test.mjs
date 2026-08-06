@@ -36,7 +36,7 @@ test("provides streaming chapters, progress, bookmarks, and honest subtitle limi
   assert.match(view, /readAudioBookmarks/);
   assert.match(view, /writeAudioBookmarks/);
   assert.match(view, /Daftar bagian/);
-  assert.match(view, /tidak menyediakan subtitle atau timestamp kalimat/);
+  assert.match(view, /tidak menyediakan subtitle atau timestamp/);
   assert.match(view, /Buka teks sumber/);
 });
 
