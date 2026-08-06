@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./responsive.css";
 import "./mobile-player.css";
+import "./full-player-v2.css";
 import "./header-tools.css";
 import "./storage-management.css";
 import "./chapter-management.css";
