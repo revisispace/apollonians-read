@@ -37,7 +37,7 @@ test("scopes IndexedDB, playback, bookmarks, preferences, and activity to the au
     readFile(new URL("app/lib/local-db.ts", projectRoot), "utf8"),
     readFile(new URL("app/lib/account-storage.ts", projectRoot), "utf8"),
     readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
-    readFile(new URL("app/components/AccountAudioPlayer.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/components/EnhancedAccountAudioPlayer.tsx", projectRoot), "utf8"),
     readFile(new URL("app/components/AccountSettingsView.tsx", projectRoot), "utf8"),
     readFile(new URL("app/components/AccountDialog.tsx", projectRoot), "utf8"),
   ]);
@@ -65,9 +65,9 @@ test("scopes IndexedDB, playback, bookmarks, preferences, and activity to the au
   assert.match(player, /writePlaybackPosition\(userId, book\.id/);
   assert.match(player, /readAudioBookmarks\(userId, book\.id\)/);
   assert.match(player, /writeAudioBookmarks\(userId, book\.id, updated\)/);
-  assert.match(player, /Simpan bookmark/);
+  assert.match(player, /const addBookmark/);
   assert.match(player, /Daftar bookmark/);
-  assert.match(player, /Hapus bookmark/);
+  assert.match(player, /const deleteBookmark/);
   assert.match(settings, /readAccountPreferences\(userId\)/);
   assert.match(settings, /writeAccountPreferences\(userId, next\)/);
   assert.match(account, /Keluar dan hapus data perangkat/);
