@@ -18,7 +18,6 @@ test("global search exposes keyboard shortcut, results, clear, and mobile trigge
     readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
     readFile(new URL("app/header-tools.css", projectRoot), "utf8"),
   ]);
-
   assert.match(header, /event\.metaKey \|\| event\.ctrlKey/);
   assert.match(header, /event\.key\.toLowerCase\(\) === "k"/);
   assert.match(header, /searchResults\.map/);
@@ -36,14 +35,13 @@ test("notification panel tracks unread state and routes actionable events", asyn
     readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
     readFile(new URL("app/header-tools.css", projectRoot), "utf8"),
   ]);
-
   assert.match(header, /notifications\.filter\(\(item\) => item\.unread\)/);
   assert.match(header, /onMarkAllNotificationsRead/);
   assert.match(header, /onOpenNotification/);
   assert.match(header, /notification-popover/);
   assert.match(app, /pushNotification\("Audiobook selesai dibuat"/);
-  assert.match(app, /item\.id === notification\.id \? \{ \.\.\.item, unread: false \}/);
-  assert.match(app, /if \(notification\.target\) setActive\(notification\.target\)/);
+  assert.match(app, /item\.id===notification\.id\?\{\.\.\.item,unread:false\}/);
+  assert.match(app, /if\(notification\.target\)setActive\(notification\.target\)/);
   assert.match(styles, /notification-popover > button\.unread/);
   assert.match(styles, /notification-dot/);
 });
