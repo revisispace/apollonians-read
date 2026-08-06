@@ -27,7 +27,7 @@ test("checks stored jobs after reload and imports completed audio", () => {
   assert.match(edge, /\/v1\/tts\/\$\{job\.jobId\}\/status/);
   assert.match(edge, /\/v1\/tts\/\$\{job\.jobId\}\/audio/);
   assert.match(app, /recoverActiveEdgeJobs\(userId/);
-  assert.match(app, /appendAudioChunk\(job\.bookId, chunk\)/);
+  assert.match(app, /appendAudioChunk\(job\.bookId\s*,\s*chunk\)/);
   assert.match(app, /proses sebelumnya berhasil dipulihkan/);
 });
 
