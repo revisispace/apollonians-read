@@ -4,11 +4,22 @@ export type DetectedChapter = {
   progress: number;
 };
 
+type ChapterDetectionContext = {
+  userId: string;
+  bookId: string;
+};
+
+let detectionContext: ChapterDetectionContext | null = null;
+
 const chapterPattern = /^(?:bab|chapter|bagian|part)\s+(?:[ivxlcdm]+|\d+)(?:(?:\s*[:.\-–—]\s*|\s+).{1,90})?$/i;
 const numberedHeadingPattern = /^\d+(?:\.\d+)*\s+.{2,90}$/;
 
 function normalizeHeading(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+export function setChapterDetectionContext(userId: string, bookId: string) {
+  detectionContext = { userId, bookId };
 }
 
 export function normalizeChapters(chapters: DetectedChapter[], maxChapters = 80) {
@@ -24,13 +35,29 @@ export function normalizeChapters(chapters: DetectedChapter[], maxChapters = 80)
     .slice(0, maxChapters);
 }
 
+function readManagedChapters(maxChapters: number) {
+  if (typeof window === "undefined" || !detectionContext) return null;
+  try {
+    const key = `apollonians-user-${detectionContext.userId}-chapters-${detectionContext.bookId}`;
+    const value = localStorage.getItem(key);
+    return value ? normalizeChapters(JSON.parse(value) as DetectedChapter[], maxChapters) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function chapterForProgress(chapters: DetectedChapter[], progress: number) {
   if (!chapters.length) return null;
   const safeProgress = Math.max(0, Math.min(1, progress));
   return [...chapters].reverse().find((chapter) => chapter.progress <= safeProgress) ?? chapters[0];
 }
 
-export function detectChapters(text: string, maxChapters = 80): DetectedChapter[] {
+export function detectChapters(text: string, maxChapters = 80, includeManaged = true): DetectedChapter[] {
+  if (includeManaged) {
+    const managed = readManagedChapters(maxChapters);
+    if (managed) return managed;
+  }
+
   const lines = text.split(/\r?\n/);
   const chapters: DetectedChapter[] = [];
   let cursor = 0;
