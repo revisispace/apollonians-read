@@ -4,11 +4,30 @@ export type DetectedChapter = {
   progress: number;
 };
 
-const chapterPattern = /^(?:bab|chapter|bagian|part)\s+(?:[ivxlcdm]+|\d+)(?:\s*[:.\-–—]\s*|\s+).{0,90}$/i;
+const chapterPattern = /^(?:bab|chapter|bagian|part)\s+(?:[ivxlcdm]+|\d+)(?:(?:\s*[:.\-–—]\s*|\s+).{1,90})?$/i;
 const numberedHeadingPattern = /^\d+(?:\.\d+)*\s+.{2,90}$/;
 
 function normalizeHeading(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+export function normalizeChapters(chapters: DetectedChapter[], maxChapters = 80) {
+  return chapters
+    .filter((chapter) => chapter.title.trim())
+    .map((chapter, index) => ({
+      id: chapter.id || `chapter-${index + 1}`,
+      title: normalizeHeading(chapter.title).slice(0, 100),
+      progress: Math.max(0, Math.min(1, Number.isFinite(chapter.progress) ? chapter.progress : 0)),
+    }))
+    .sort((left, right) => left.progress - right.progress)
+    .filter((chapter, index, list) => index === 0 || Math.abs(chapter.progress - list[index - 1].progress) >= 0.001)
+    .slice(0, maxChapters);
+}
+
+export function chapterForProgress(chapters: DetectedChapter[], progress: number) {
+  if (!chapters.length) return null;
+  const safeProgress = Math.max(0, Math.min(1, progress));
+  return [...chapters].reverse().find((chapter) => chapter.progress <= safeProgress) ?? chapters[0];
 }
 
 export function detectChapters(text: string, maxChapters = 80): DetectedChapter[] {
@@ -21,7 +40,7 @@ export function detectChapters(text: string, maxChapters = 80): DetectedChapter[
     const lineStart = text.indexOf(rawLine, cursor);
     cursor = lineStart >= 0 ? lineStart + rawLine.length : cursor + rawLine.length;
 
-    if (line.length < 4 || line.length > 100) continue;
+    if (line.length < 3 || line.length > 100) continue;
     const isHeading = chapterPattern.test(line) || numberedHeadingPattern.test(line);
     if (!isHeading) continue;
 
@@ -38,5 +57,5 @@ export function detectChapters(text: string, maxChapters = 80): DetectedChapter[
     if (chapters.length >= maxChapters) break;
   }
 
-  return chapters;
+  return normalizeChapters(chapters, maxChapters);
 }

@@ -1,6 +1,9 @@
 import JSZip from "jszip";
 import type { Book } from "./content";
+import { readCustomChapters } from "./account-storage";
+import { chapterForProgress, detectChapters } from "./chapters";
 import { getLocalBook } from "./local-db";
+import { getSupabase } from "./supabase";
 
 function safeFilename(value: string) {
   return value
@@ -20,10 +23,19 @@ function extensionFor(blob: Blob) {
   return "webm";
 }
 
+async function currentUserId() {
+  const supabase = getSupabase();
+  if (!supabase) return "";
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? "";
+}
+
 export async function exportBookAudio(book: Book) {
   const asset = await getLocalBook(book.id);
   if (!asset?.audioChunks.length) throw new Error("Audio lokal belum tersedia untuk buku ini.");
 
+  const userId = await currentUserId();
+  const chapters = (userId ? readCustomChapters(userId, book.id) : null) ?? detectChapters(asset.text);
   const zip = new JSZip();
   const folderName = safeFilename(book.title);
   const folder = zip.folder(folderName);
@@ -32,7 +44,10 @@ export async function exportBookAudio(book: Book) {
   const width = Math.max(2, String(asset.audioChunks.length).length);
   asset.audioChunks.forEach((chunk, index) => {
     const part = String(index + 1).padStart(width, "0");
-    folder.file(`${part}-bagian-${index + 1}.${extensionFor(chunk)}`, chunk);
+    const progress = asset.audioChunks.length ? index / asset.audioChunks.length : 0;
+    const chapter = chapterForProgress(chapters, progress);
+    const chapterName = chapter ? safeFilename(chapter.title) : `bagian-${index + 1}`;
+    folder.file(`${part}-${chapterName}.${extensionFor(chunk)}`, chunk);
   });
 
   folder.file(
@@ -42,6 +57,7 @@ export async function exportBookAudio(book: Book) {
         title: book.title,
         author: book.author,
         parts: asset.audioChunks.length,
+        chapters,
         exportedAt: new Date().toISOString(),
         sourceName: asset.book.sourceName ?? null,
       },

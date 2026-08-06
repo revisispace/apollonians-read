@@ -8,6 +8,7 @@ import {
   writeAccountPreferences,
   type AccountPreferences,
 } from "../lib/account-storage";
+import { ChapterManagement } from "./ChapterManagement";
 import { StorageManagement } from "./StorageManagement";
 
 export function AccountSettingsView({
@@ -136,6 +137,7 @@ export function AccountSettingsView({
             />
           </div>
 
+          <ChapterManagement userId={userId} />
           <StorageManagement onAudioRemoved={onAudioRemoved} />
         </section>
       </div>

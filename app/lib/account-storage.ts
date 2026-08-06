@@ -1,3 +1,5 @@
+import { normalizeChapters, type DetectedChapter } from "./chapters";
+
 export type PlaybackPosition = {
   chunk: number;
   currentTime: number;
@@ -43,6 +45,10 @@ export function playbackPositionKey(userId: string, bookId: string) {
 
 export function bookmarksKey(userId: string, bookId: string) {
   return `${accountPrefix(userId)}-bookmarks-${bookId}`;
+}
+
+export function chaptersKey(userId: string, bookId: string) {
+  return `${accountPrefix(userId)}-chapters-${bookId}`;
 }
 
 export function activeEdgeJobKey(userId: string, bookId: string) {
@@ -93,6 +99,32 @@ export function writeAudioBookmarks(userId: string, bookId: string, bookmarks: A
   } catch {
     // Bookmarks remain available in memory when storage is unavailable.
   }
+}
+
+export function readCustomChapters(userId: string, bookId: string) {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = localStorage.getItem(chaptersKey(userId, bookId));
+    if (!value) return null;
+    return normalizeChapters(JSON.parse(value) as DetectedChapter[]);
+  } catch {
+    return null;
+  }
+}
+
+export function writeCustomChapters(userId: string, bookId: string, chapters: DetectedChapter[]) {
+  const normalized = normalizeChapters(chapters);
+  try {
+    localStorage.setItem(chaptersKey(userId, bookId), JSON.stringify(normalized));
+  } catch {
+    // Custom chapter markers remain available in memory when storage is unavailable.
+  }
+  return normalized;
+}
+
+export function clearCustomChapters(userId: string, bookId: string) {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(chaptersKey(userId, bookId));
 }
 
 export function readActiveEdgeJob(userId: string, bookId: string) {
