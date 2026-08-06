@@ -1,14 +1,15 @@
 "use client";
 
-import { Activity, BookOpen, Home, MoreHorizontal, Settings, ShieldCheck, WandSparkles } from "lucide-react";
+import { Activity, BookOpen, Headphones, Home, MoreHorizontal, Settings, ShieldCheck, WandSparkles } from "lucide-react";
 
-export type ViewId = "home" | "library" | "studio" | "activity" | "settings" | "admin";
+export type ViewId = "home" | "library" | "librivox" | "studio" | "activity" | "settings" | "admin";
 
 type NavItem = { id: ViewId; label: string; icon: typeof Home };
 
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Beranda", icon: Home },
   { id: "library", label: "Perpustakaan", icon: BookOpen },
+  { id: "librivox", label: "LibriVox", icon: Headphones },
   { id: "studio", label: "Buat audio", icon: WandSparkles },
   { id: "activity", label: "Aktivitas", icon: Activity },
   { id: "settings", label: "Pengaturan", icon: Settings },
