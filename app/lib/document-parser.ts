@@ -129,7 +129,7 @@ async function ocrPdf(
       if (!context) throw new Error("Canvas OCR tidak tersedia di browser ini.");
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: context, viewport }).promise;
+      await page.render({ canvas, canvasContext: context, viewport }).promise;
       const result = await worker.recognize(canvas);
       const pageText = cleanText(result.data.text);
       if (pageText) pages.push(pageText);
