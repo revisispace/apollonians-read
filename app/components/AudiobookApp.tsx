@@ -133,7 +133,7 @@ export function AudiobookApp() {
       {active !== "librivox" && selectedBook && userId && <AccountAudioPlayer book={selectedBook} userId={userId} />}
     </div>
     {activityBadge && active !== "activity" && <button className="activity-toast" onClick={() => { setActive("activity"); setActivityBadge(false); }}><span>1</span> Proses baru ditambahkan</button>}
-    <MobileNav active={active} onChange={setActive} isSuperadmin={auth.isSuperadmin} />
+    <MobileNav active={active} onChange={setActive} onAccount={() => setAccountOpen(true)} isSuperadmin={auth.isSuperadmin} />
     <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} onLocalDataCleared={handleLocalDataCleared} />
   </div>;
 }
