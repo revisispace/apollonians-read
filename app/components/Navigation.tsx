@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpen, Headphones, Home, MoreHorizontal, Settings, ShieldCheck, WandSparkles } from "lucide-react";
+import { Activity, BookOpen, Headphones, Home, MoreHorizontal, Settings, ShieldCheck, UserRound, WandSparkles } from "lucide-react";
 
 export type ViewId = "home" | "library" | "librivox" | "studio" | "activity" | "settings" | "admin";
 
@@ -54,9 +54,10 @@ export function Sidebar({ active, onChange, profileName, onAccount, isSuperadmin
   );
 }
 
-export function MobileNav({ active, onChange, isSuperadmin }: {
+export function MobileNav({ active, onChange, onAccount, isSuperadmin }: {
   active: ViewId;
   onChange: (view: ViewId) => void;
+  onAccount: () => void;
   isSuperadmin: boolean;
 }) {
   return (
@@ -71,6 +72,9 @@ export function MobileNav({ active, onChange, isSuperadmin }: {
           <ShieldCheck size={19} /> Admin
         </button>
       )}
+      <button className="mobile-account-button" onClick={onAccount} aria-label="Buka akun dan opsi keluar">
+        <UserRound size={19} /> Akun
+      </button>
     </nav>
   );
 }
