@@ -16,6 +16,16 @@ export type AccountLocalBookAsset = LocalBookAsset & {
   userId: string;
 };
 
+export type LocalBookStorageSummary = {
+  id: string;
+  title: string;
+  audioBytes: number;
+  sourceBytes: number;
+  textBytes: number;
+  totalBytes: number;
+  audioChunks: number;
+};
+
 interface ApolloniansDatabase extends DBSchema {
   books: {
     key: string;
@@ -78,6 +88,10 @@ function toAccountAsset(userId: string, asset: LocalBookAsset | AccountLocalBook
     audioChunks: asset.audioChunks,
     updatedAt: asset.updatedAt,
   };
+}
+
+function byteLength(text: string) {
+  return new TextEncoder().encode(text).byteLength;
 }
 
 export async function hasLegacyLocalBooks() {
@@ -177,6 +191,48 @@ export async function updateLocalBookTitle(id: string, title: string) {
   };
   await db.put("accountBooks", updated);
   return updated.book;
+}
+
+export async function listLocalStorageSummaries(): Promise<LocalBookStorageSummary[]> {
+  const assets = await listLocalBooks();
+  return assets.map((asset) => {
+    const audioBytes = asset.audioChunks.reduce((total, chunk) => total + chunk.size, 0);
+    const sourceBytes = asset.source?.size ?? 0;
+    const textBytes = byteLength(asset.text);
+    return {
+      id: asset.id,
+      title: asset.book.title,
+      audioBytes,
+      sourceBytes,
+      textBytes,
+      totalBytes: audioBytes + sourceBytes + textBytes,
+      audioChunks: asset.audioChunks.length,
+    };
+  }).sort((a, b) => b.audioBytes - a.audioBytes);
+}
+
+export async function removeLocalAudio(bookIds: string[]) {
+  if (!bookIds.length) return 0;
+  const userId = await requireAuthenticatedUserId();
+  const db = await database();
+  const transaction = db.transaction("accountBooks", "readwrite");
+  let removedBytes = 0;
+
+  for (const id of new Set(bookIds)) {
+    const key = scopedBookKey(userId, id);
+    const asset = await transaction.store.get(key);
+    if (!asset || asset.userId !== userId || !asset.audioChunks.length) continue;
+    removedBytes += asset.audioChunks.reduce((total, chunk) => total + chunk.size, 0);
+    await transaction.store.put({
+      ...asset,
+      audioChunks: [],
+      book: { ...asset.book, generated: false },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  await transaction.done;
+  return removedBytes;
 }
 
 export async function removeLocalBook(id: string) {

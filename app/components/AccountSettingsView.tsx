@@ -8,8 +8,15 @@ import {
   writeAccountPreferences,
   type AccountPreferences,
 } from "../lib/account-storage";
+import { StorageManagement } from "./StorageManagement";
 
-export function AccountSettingsView({ userId }: { userId: string }) {
+export function AccountSettingsView({
+  userId,
+  onAudioRemoved,
+}: {
+  userId: string;
+  onAudioRemoved: (bookIds: string[], removedBytes: number) => void;
+}) {
   const [prefs, setPrefs] = useState<AccountPreferences>(() => readAccountPreferences(userId));
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "playing" | "error">("idle");
   const previewUrlRef = useRef<string | null>(null);
@@ -128,6 +135,8 @@ export function AccountSettingsView({ userId }: { userId: string }) {
               onChange={(value) => update("notify", value)}
             />
           </div>
+
+          <StorageManagement onAudioRemoved={onAudioRemoved} />
         </section>
       </div>
     </div>
