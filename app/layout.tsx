@@ -3,6 +3,7 @@ import "./globals.css";
 import "./responsive.css";
 import "./mobile-player.css";
 import "./header-tools.css";
+import "./storage-management.css";
 import { AuthProvider } from "./lib/auth";
 import { ServiceWorkerRegistration } from "./components/ServiceWorkerRegistration";
 
