@@ -13,7 +13,7 @@ type RequestOptions = { signal?: AbortSignal; cacheTtlMs?: number };
 const API_BASE = "https://librivox.org/api/feed/audiobooks";
 const SEARCH_CACHE_TTL = 5 * 60 * 1000;
 const DETAIL_CACHE_TTL = 30 * 60 * 1000;
-const REQUEST_TIMEOUT = 8000;
+const REQUEST_TIMEOUT = 15000;
 const responseCache = new Map<string, { expiresAt: number; books: LibriVoxBook[] }>();
 const detailRequests = new Map<string, Promise<LibriVoxBook>>();
 
@@ -89,11 +89,13 @@ function jsonp(params: URLSearchParams, signal?: AbortSignal): Promise<ApiPayloa
     (window as unknown as Record<string, unknown>)[callback] = (payload: ApiPayload) => finish(undefined, payload);
     signal?.addEventListener("abort", onAbort, { once: true });
     const jsonpParams = new URLSearchParams(params);
-    jsonpParams.set("format", "jsonp");
+    // LibriVox returns JSONP when a callback is supplied; format must remain json.
+    jsonpParams.set("format", "json");
     jsonpParams.set("callback", callback);
     script.src = `${API_BASE}/?${jsonpParams.toString()}`;
     script.async = true;
-    script.onerror = () => finish(new Error("Katalog LibriVox tidak dapat dijangkau."));
+    script.referrerPolicy = "no-referrer";
+    script.onerror = () => finish(new Error("Katalog LibriVox tidak dapat dijangkau melalui JSONP."));
     document.head.appendChild(script);
   });
 }
@@ -106,7 +108,13 @@ async function fetchJson(params: URLSearchParams, signal?: AbortSignal): Promise
   try {
     const fetchParams = new URLSearchParams(params);
     fetchParams.set("format", "json");
-    const response = await fetch(`${API_BASE}/?${fetchParams.toString()}`, { cache: "force-cache", signal: controller.signal });
+    const response = await fetch(`${API_BASE}/?${fetchParams.toString()}`, {
+      cache: "no-store",
+      mode: "cors",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+    });
     if (!response.ok) throw new Error(`LibriVox merespons ${response.status}.`);
     return await response.json() as ApiPayload;
   } finally {
@@ -123,13 +131,20 @@ async function request(params: URLSearchParams, options: RequestOptions = {}) {
   if (options.signal?.aborted) throw abortError();
 
   let payload: ApiPayload;
+  let directError: unknown;
   try {
-    payload = typeof document === "undefined"
-      ? await fetchJson(params, options.signal)
-      : await jsonp(params, options.signal);
+    payload = await fetchJson(params, options.signal);
   } catch (problem) {
     if (options.signal?.aborted || (problem instanceof DOMException && problem.name === "AbortError")) throw abortError();
-    payload = await fetchJson(params, options.signal);
+    directError = problem;
+    try {
+      payload = await jsonp(params, options.signal);
+    } catch (jsonpError) {
+      if (options.signal?.aborted || (jsonpError instanceof DOMException && jsonpError.name === "AbortError")) throw abortError();
+      const directMessage = directError instanceof Error ? directError.message : "request langsung gagal";
+      const jsonpMessage = jsonpError instanceof Error ? jsonpError.message : "fallback JSONP gagal";
+      throw new Error(`LibriVox sedang tidak dapat dijangkau. ${directMessage}; ${jsonpMessage}`);
+    }
   }
 
   const books = Array.isArray(payload.books) ? payload.books.map(normalizeLibriVoxBook) : [];

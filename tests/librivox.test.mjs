@@ -24,8 +24,8 @@ test("uses official LibriVox catalog fields with JSONP fallback", async () => {
   assert.match(client, /coverart/);
   assert.match(client, /listen_url/);
   assert.match(client, /url_text_source/);
-  assert.match(client, /format", "jsonp"/);
-  assert.match(client, /callback/);
+  assert.match(client, /jsonpParams\.set\("format", "json"\)/);
+  assert.match(client, /jsonpParams\.set\("callback", callback\)/);
 });
 
 test("provides streaming chapters, progress, bookmarks, and honest subtitle limitations", async () => {
