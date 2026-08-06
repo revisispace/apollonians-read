@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, BookOpenText, ChevronDown, ListMusic, Moon, Pause, Play, RotateCcw, RotateCw, Search, SkipBack, SkipForward, Trash2, X } from "lucide-react";
 import type { Book } from "../lib/content";
 import { detectChapters, type DetectedChapter } from "../lib/chapters";
-import { textChunks } from "../lib/document-parser";
+import { edgeAudioSegments, estimatedSentenceIndex } from "../lib/edge-audio-segments";
 import { getLocalBook } from "../lib/local-db";
 import { readAudioBookmarks, readPlaybackPosition, writeAudioBookmarks, writePlaybackPosition, type AudioBookmark } from "../lib/account-storage";
 import { BookCover } from "./BookCover";
@@ -38,12 +38,13 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
   const overall = chunks ? Math.min(1, (chunk + partRatio) / chunks) : 0;
 
   const activeChapter = useMemo(() => [...chapters].reverse().find((item) => item.progress <= overall) ?? chapters[0] ?? null, [chapters, overall]);
-  const currentAudioText = audioTexts[chunk] ?? "Teks untuk bagian audio ini belum tersedia.";
+  const currentAudioText = audioTexts[chunk] ?? "Teks sumber untuk bagian audio ini belum tersedia.";
   const currentSentences = useMemo(() => sentences(currentAudioText), [currentAudioText]);
-  const sentenceIndex = currentSentences.length ? Math.min(currentSentences.length - 1, Math.floor(partRatio * currentSentences.length)) : 0;
+  const sentenceIndex = estimatedSentenceIndex(currentSentences, partRatio);
   const activeText = currentSentences[sentenceIndex] ?? currentAudioText;
   const previousText = sentenceIndex > 0 ? currentSentences[sentenceIndex - 1] : (chunk > 0 ? sentences(audioTexts[chunk - 1] ?? "").at(-1) ?? "" : "");
   const nextText = sentenceIndex + 1 < currentSentences.length ? currentSentences[sentenceIndex + 1] : sentences(audioTexts[chunk + 1] ?? "")[0] ?? "";
+  const transcriptMapped = Boolean(audioTexts[chunk]);
   const filteredChapters = useMemo(() => query ? chapters.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())) : chapters, [chapters, query]);
   const filteredBookmarks = useMemo(() => query ? bookmarks.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())) : bookmarks, [bookmarks, query]);
 
@@ -57,7 +58,7 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
       if (!active) return;
       setBookmarks(readAudioBookmarks(userId, book.id));
       setChapters(asset?.text ? detectChapters(asset.text) : []);
-      setAudioTexts(asset?.text ? textChunks(asset.text) : []);
+      setAudioTexts(asset?.text ? edgeAudioSegments(asset.text).slice(0, asset.audioChunks.length) : []);
       setFullOpen(false); setPanel(null); setPlaying(false); setElapsed(0); setDuration(0);
       if (!asset?.audioChunks.length) {
         setChunks(0);
@@ -165,7 +166,7 @@ export function EnhancedAccountAudioPlayer({ book, userId }: { book: Book; userI
       <header><button onClick={() => { setFullOpen(false); setPanel(null); }} aria-label="Tutup"><X size={22} /></button><div><strong>Sedang diputar</strong><small>{activeChapter?.title ?? `Bagian audio ${chunk + 1}`}</small></div><button onClick={addBookmark} aria-label="Simpan bookmark"><Bookmark size={21} /></button></header>
       <div className="full-player-v2-main">
         <div className="full-player-v2-book"><div><BookCover title={book.title} author={book.author} palette={book.palette} /></div><p>Bagian audio {chunk + 1} dari {chunks}</p><h2>{book.title}</h2><span>{book.author}</span></div>
-        <article className="reader-transcript-v2"><div className="transcript-head"><span>Sedang dibacakan</span><strong>{Math.round(overall * 100)}%</strong></div><div className="transcript-body">{previousText && <p className="context">{previousText}</p>}<p className="active">{activeText}</p>{nextText && <p className="context">{nextText}</p>}</div><small>Diselaraskan dengan bagian audio {chunk + 1} dan posisi {time(elapsed)}.</small></article>
+        <article className="reader-transcript-v2"><div className="transcript-head"><span>{transcriptMapped ? "Teks bagian audio" : "Teks belum dipetakan"}</span><strong>{Math.round(overall * 100)}%</strong></div><div className="transcript-body">{previousText && <p className="context">{previousText}</p>}<p className="active">{activeText}</p>{nextText && <p className="context">{nextText}</p>}</div><small>{transcriptMapped ? `Teks dipetakan ke bagian audio ${chunk + 1}. Sorotan kalimat berdasarkan estimasi ritme, bukan timestamp TTS.` : "Audio lama ini belum memiliki pasangan teks yang dapat diverifikasi."}</small></article>
       </div>
       <div className="full-player-v2-dock"><div className="full-player-v2-timeline"><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(elapsed, duration || 0)} onChange={(event) => { if (audioRef.current) audioRef.current.currentTime = Number(event.target.value); }} /><div><small>{time(elapsed)}</small><small>Bagian {chunk + 1}/{chunks}</small><small>{time(duration)}</small></div></div><div className="full-player-v2-controls"><button onClick={() => moveChapter(-1)}><SkipBack size={24} /></button><button onClick={() => seek(-15)}><RotateCcw size={25} /><small>15</small></button><button className="main" onClick={toggle}>{playing ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}</button><button onClick={() => seek(30)}><RotateCw size={25} /><small>30</small></button><button onClick={() => moveChapter(1)}><SkipForward size={24} /></button></div><div className="full-player-v2-tools"><button onClick={() => setSpeed(speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1)}>{speed}×<small>Kecepatan</small></button><button onClick={() => openPanel("chapters")}><BookOpenText size={19} /><small>Bab</small></button><button onClick={() => openPanel("bookmarks")}><ListMusic size={19} /><small>Bookmark</small></button><label><Moon size={19} /><select value={sleepMode} onChange={(event) => changeSleep(event.target.value as SleepMode)}><option value="off">Off</option><option value="15">15 menit</option><option value="30">30 menit</option><option value="60">60 menit</option><option value="end">Akhir bagian</option></select><small>Timer</small></label></div></div>
       {panel && <aside className="player-data-panel"><div className="head"><div><strong>{panel === "chapters" ? "Daftar bab" : "Daftar bookmark"}</strong><small>{panel === "chapters" ? `${chapters.length} bagian` : `${bookmarks.length} tersimpan`}</small></div><button onClick={() => setPanel(null)}><X size={18} /></button></div><label className="search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Cari ${panel === "chapters" ? "bab" : "bookmark"}`} /></label><div className="columns"><span>Nama</span><span>Posisi</span><span>Aksi</span></div><div className="rows">{panel === "chapters" ? filteredChapters.map((item, index) => <button key={item.id} className={item.id === activeChapter?.id ? "active" : ""} onClick={() => jumpChapter(item)}><span><b>{index + 1}</b><em>{item.title}</em></span><small>{Math.round(item.progress * 100)}%</small><i>Putar</i></button>) : filteredBookmarks.map((item) => <div key={item.id}><button onClick={() => { moveToChunk(item.chunk, item.currentTime, playing); setPanel(null); }}><span><b>{item.chunk + 1}</b><em>{item.label}</em></span><small>{time(item.currentTime)}</small><i>Putar</i></button><button onClick={() => deleteBookmark(item.id)} aria-label="Hapus bookmark"><Trash2 size={16} /></button></div>)}</div></aside>}
