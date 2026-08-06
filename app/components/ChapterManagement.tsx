@@ -15,6 +15,8 @@ export function ChapterManagement({ userId }: { userId: string }) {
 
   const selectedAsset = useMemo(() => assets.find((asset) => asset.id === bookId) ?? null, [assets, bookId]);
 
+  const detectedFor = (asset: AccountLocalBookAsset) => detectChapters(asset.text, 80, false);
+
   const loadBooks = useCallback(async () => {
     setLoading(true);
     try {
@@ -24,7 +26,7 @@ export function ChapterManagement({ userId }: { userId: string }) {
       setBookId(nextId);
       const asset = records.find((item) => item.id === nextId);
       if (asset) {
-        setChapters(readCustomChapters(userId, asset.id) ?? detectChapters(asset.text));
+        setChapters(readCustomChapters(userId, asset.id) ?? detectedFor(asset));
       } else {
         setChapters([]);
       }
@@ -43,7 +45,7 @@ export function ChapterManagement({ userId }: { userId: string }) {
   const selectBook = (nextId: string) => {
     setBookId(nextId);
     const asset = assets.find((item) => item.id === nextId);
-    setChapters(asset ? readCustomChapters(userId, asset.id) ?? detectChapters(asset.text) : []);
+    setChapters(asset ? readCustomChapters(userId, asset.id) ?? detectedFor(asset) : []);
     setMessage("");
   };
 
@@ -75,7 +77,7 @@ export function ChapterManagement({ userId }: { userId: string }) {
   const reset = () => {
     if (!selectedAsset) return;
     clearCustomChapters(userId, selectedAsset.id);
-    const detected = detectChapters(selectedAsset.text);
+    const detected = detectedFor(selectedAsset);
     setChapters(detected);
     setMessage(`Penanda manual dihapus. ${detected.length} bab dideteksi ulang dari teks.`);
   };
