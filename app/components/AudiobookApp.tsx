@@ -32,6 +32,13 @@ const makeNotification = (title: string, detail: string, target?: ViewId): Heade
   target,
 });
 
+const formatBytes = (bytes: number) => {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** exponent).toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+};
+
 export function AudiobookApp() {
   const auth = useAuth();
   const userId = auth.user?.id ?? "";
@@ -160,6 +167,18 @@ export function AudiobookApp() {
     pushNotification("Buku dihapus", `“${book.title}” dan audio lokalnya telah dihapus.`, "library");
   };
 
+  const handleAudioRemoved = (bookIds: string[], removedBytes: number) => {
+    const ids = new Set(bookIds);
+    const updateBook = (book: Book) => ids.has(book.id)
+      ? normalizeBookMetadata({ ...book, generated: false, updatedAt: new Date().toISOString() }, 0)
+      : book;
+    setPersonalBooks((current) => current.map(updateBook));
+    setSelectedBook((current) => current ? updateBook(current) : current);
+    const message = `${formatBytes(removedBytes)} audio lokal dibersihkan dari ${bookIds.length} buku. Metadata buku tetap tersedia.`;
+    setStorageMessage(message);
+    pushNotification("Penyimpanan dibersihkan", message, "settings");
+  };
+
   const handleLocalDataCleared = () => {
     setPersonalBooks([]);
     setSelectedBook(null);
@@ -204,7 +223,7 @@ export function AudiobookApp() {
           {active === "library" && <LibraryView allBooks={allBooks} query={query} onChange={setActive} onSelect={setSelectedBook} onRename={renameBook} onDelete={deleteBook} />}
           {active === "studio" && <EdgeStudioView onCreated={createdBook} />}
           {active === "activity" && <ActivityView recent={recentActivities} />}
-          {active === "settings" && userId && <AccountSettingsView key={userId} userId={userId} />}
+          {active === "settings" && userId && <AccountSettingsView key={userId} userId={userId} onAudioRemoved={handleAudioRemoved} />}
           {active === "admin" && auth.isSuperadmin && <AdminView />}
         </main>
         {selectedBook && userId && <AccountAudioPlayer book={selectedBook} userId={userId} />}
