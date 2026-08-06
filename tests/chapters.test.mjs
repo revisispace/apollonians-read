@@ -33,6 +33,23 @@ test("exposes editable account-scoped chapter markers", async () => {
   assert.match(settings, /<ChapterManagement userId=\{userId\}/);
 });
 
+test("creates chapters automatically from stored audio parts", async () => {
+  const [chapters, manager, styles] = await Promise.all([
+    readFile(new URL("app/lib/chapters.ts", projectRoot), "utf8"),
+    readFile(new URL("app/components/ChapterManagement.tsx", projectRoot), "utf8"),
+    readFile(new URL("app/chapter-management.css", projectRoot), "utf8"),
+  ]);
+
+  assert.match(chapters, /chaptersFromAudioChunks/);
+  assert.match(chapters, /title: `Bagian audio \$\{index \+ 1\}`/);
+  assert.match(chapters, /progress: index \/ total/);
+  assert.match(manager, /Otomatis dari audio/);
+  assert.match(manager, /Satu bab untuk setiap bagian audio/);
+  assert.match(manager, /type ChapterMode = "audio" \| "manual"/);
+  assert.match(manager, /audioChunks\.length/);
+  assert.match(styles, /\.chapter-mode-options/);
+});
+
 test("exports audio parts using managed chapter names", async () => {
   const exporter = await readFile(new URL("app/lib/audio-export.ts", projectRoot), "utf8");
 
