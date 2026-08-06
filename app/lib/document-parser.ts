@@ -18,6 +18,8 @@ export type DocumentParseOptions = {
   onProgress?: (progress: DocumentParseProgress) => void;
 };
 
+type PdfDocument = Awaited<ReturnType<(typeof import("pdfjs-dist/legacy/build/pdf.mjs"))["getDocument"]>["promise"]>;
+
 type TesseractWorker = {
   recognize: (image: HTMLCanvasElement) => Promise<{ data: { text: string } }>;
   terminate: () => Promise<void>;
@@ -97,7 +99,7 @@ async function loadTesseract() {
 }
 
 async function ocrPdf(
-  pdf: Awaited<ReturnType<typeof import("pdfjs-dist/legacy/build/pdf.mjs")["getDocument"]>>["promise"],
+  pdf: PdfDocument,
   onProgress?: DocumentParseOptions["onProgress"],
 ) {
   const tesseract = await loadTesseract();
