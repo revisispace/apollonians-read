@@ -20,13 +20,13 @@ test("LibriVox cards expose playback and player reports loading", async () => {
   const view = await readFile(new URL("app/components/LibriVoxView.tsx", projectRoot), "utf8");
   const css = await readFile(new URL("app/librivox.css", projectRoot), "utf8");
   assert.match(view, /Putar audiobook/);
-  assert.match(view, /openBook\(book, true\)/);
+  assert.match(view, /onOpen\(book, true\)/);
   assert.match(view, /preload="auto"/);
   assert.match(view, /onWaiting/);
   assert.match(view, /onCanPlay/);
   assert.match(view, /librivox-player-status/);
   assert.match(view, /Buka teks sumber/);
-  assert.match(view, /tidak menyediakan subtitle atau timestamp sinkron/);
+  assert.match(view, /tidak menyediakan subtitle atau timestamp/);
   assert.match(css, /\.librivox-card-actions \.play/);
   assert.match(css, /\.librivox-source-panel/);
 });
