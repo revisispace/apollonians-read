@@ -12,8 +12,8 @@ test("adds LibriVox to application navigation and routing", async () => {
   ]);
   assert.match(navigation, /"librivox"/);
   assert.match(navigation, /label: "LibriVox"/);
-  assert.match(app, /<LibriVoxView userId=\{userId\}/);
-  assert.match(app, /active !== "librivox" && selectedBook/);
+  assert.match(app, /<UnifiedLibriVoxEntry userId=\{userId\}/);
+  assert.match(app, /active!=="librivox"&&selectedBook/);
   assert.match(header, /librivox: "LibriVox"/);
 });
 

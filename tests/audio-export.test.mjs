@@ -6,7 +6,6 @@ const projectRoot = new URL("../", import.meta.url);
 
 test("exports account-scoped local audio as an ordered ZIP archive", async () => {
   const source = await readFile(new URL("app/lib/audio-export.ts", projectRoot), "utf8");
-
   assert.match(source, /getLocalBook\(book\.id\)/);
   assert.match(source, /new JSZip\(\)/);
   assert.match(source, /padStart\(width, "0"\)/);
@@ -18,10 +17,9 @@ test("exports account-scoped local audio as an ordered ZIP archive", async () =>
 
 test("offers audio download from generated local library books", async () => {
   const view = await readFile(new URL("app/components/Views.tsx", projectRoot), "utf8");
-
   assert.match(view, /import \{ exportBookAudio \} from "\.\.\/lib\/audio-export"/);
-  assert.match(view, /const \[exporting, setExporting\]/);
+  assert.match(view, /\[exporting\s*,\s*setExporting\]\s*=\s*useState/);
   assert.match(view, /await exportBookAudio\(book\)/);
   assert.match(view, /Unduh audio/);
-  assert.match(view, /disabled=\{!book\.generated \|\| exporting === book\.id\}/);
+  assert.match(view, /disabled=\{!item\.book\.generated\s*\|\|\s*exporting===item\.book\.id\}/);
 });
