@@ -6,7 +6,6 @@ const projectRoot = new URL("../", import.meta.url);
 
 test("summarizes local storage and removes audio without deleting book records", async () => {
   const localDb = await readFile(new URL("app/lib/local-db.ts", projectRoot), "utf8");
-
   assert.match(localDb, /export type LocalBookStorageSummary/);
   assert.match(localDb, /listLocalStorageSummaries/);
   assert.match(localDb, /audioChunks\.reduce\(\(total, chunk\) => total \+ chunk\.size/);
@@ -21,7 +20,6 @@ test("provides per-book, bulk, quota, and high-usage storage controls", async ()
     readFile(new URL("app/components/StorageManagement.tsx", projectRoot), "utf8"),
     readFile(new URL("app/storage-management.css", projectRoot), "utf8"),
   ]);
-
   assert.match(component, /navigator\.storage|estimateLocalStorage/);
   assert.match(component, /Hapus audio terpilih/);
   assert.match(component, /Hapus audio lokal/);
@@ -37,10 +35,9 @@ test("embeds storage management in account settings and refreshes player metadat
     readFile(new URL("app/components/AudiobookApp.tsx", projectRoot), "utf8"),
     readFile(new URL("app/layout.tsx", projectRoot), "utf8"),
   ]);
-
   assert.match(settings, /<StorageManagement onAudioRemoved=\{onAudioRemoved\}/);
   assert.match(app, /handleAudioRemoved/);
-  assert.match(app, /generated: false/);
+  assert.match(app, /generated:false/);
   assert.match(app, /Penyimpanan dibersihkan/);
   assert.match(layout, /import "\.\/storage-management\.css"/);
 });
