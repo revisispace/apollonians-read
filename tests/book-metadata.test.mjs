@@ -16,7 +16,7 @@ test("library load merges local and cloud copies then syncs reconciled local met
   const app = await readFile(new URL("app/components/AudiobookApp.tsx", root), "utf8");
   assert.match(app, /mergeBookMetadata/);
   assert.match(app, /new Map\(cloudBooks\.map/);
-  assert.match(app, /Promise\.allSettled\(mergedLocal\.map\(\(book\) => syncBookMetadata\(book\)\)\)/);
+  assert.match(app, /Promise\.allSettled\(mergedLocal\.map\(\(book\)\s*=>\s*syncBookMetadata\(book\)\)\)/);
 });
 
 test("cloud mapping preserves updated timestamps", async () => {
