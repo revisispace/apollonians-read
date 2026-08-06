@@ -1,5 +1,7 @@
 import { normalizeChapters, type DetectedChapter } from "./chapters";
 
+export const PLAYBACK_POSITION_EVENT = "apollonians-playback-position";
+
 export type PlaybackPosition = {
   chunk: number;
   currentTime: number;
@@ -77,6 +79,7 @@ export function readPlaybackPosition(userId: string, bookId: string) {
 export function writePlaybackPosition(userId: string, bookId: string, position: PlaybackPosition) {
   try {
     localStorage.setItem(playbackPositionKey(userId, bookId), JSON.stringify(position));
+    window.dispatchEvent(new CustomEvent(PLAYBACK_POSITION_EVENT, { detail: { userId, bookId, position } }));
   } catch {
     // Playback position is best-effort local state.
   }
