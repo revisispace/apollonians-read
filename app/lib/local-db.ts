@@ -1,5 +1,6 @@
 import { openDB, type DBSchema } from "idb";
 import type { Book } from "./content";
+import { setChapterDetectionContext } from "./chapters";
 import { getSupabase } from "./supabase";
 
 export type LocalBookAsset = {
@@ -131,6 +132,7 @@ export async function getLocalBook(id: string) {
   if (typeof indexedDB === "undefined") return undefined;
 
   const userId = await requireAuthenticatedUserId();
+  setChapterDetectionContext(userId, id);
   const asset = await (await database()).get("accountBooks", scopedBookKey(userId, id));
   return asset?.userId === userId ? asset : undefined;
 }
