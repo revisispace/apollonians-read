@@ -48,7 +48,8 @@ export function StorageManagement({ onAudioRemoved }: StorageManagementProps) {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const timer = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   const localTotal = useMemo(() => items.reduce((total, item) => total + item.totalBytes, 0), [items]);
