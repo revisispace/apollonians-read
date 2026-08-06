@@ -26,7 +26,8 @@ test("provides a responsive full player with structured chapter and bookmark pan
   assert.match(player, /Player penuh/);
   assert.match(player, /player-data-panel/);
   assert.match(player, /panel === "chapters"/);
-  assert.match(player, /panel === "bookmarks"/);
+  assert.match(player, /openPanel\("bookmarks"\)/);
+  assert.match(player, /filteredBookmarks/);
   assert.match(player, /placeholder=\{`Cari/);
   assert.match(player, /moveChapter\(-1\)/);
   assert.match(player, /moveChapter\(1\)/);
