@@ -11,7 +11,7 @@ test("detects bare and titled chapter headings", async () => {
   assert.match(chapters, /numberedHeadingPattern/);
   assert.match(chapters, /normalizeChapters/);
   assert.match(chapters, /chapterForProgress/);
-  assert.match(chapters, /\?\:\(\?:\[ivxlcdm\]\+\|\\d\+\)/);
+  assert.match(chapters, /\{1,90\}\)\?\$\/i/);
   assert.match(chapters, /line\.length < 3/);
 });
 
