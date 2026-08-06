@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -16,9 +16,13 @@ import {
 } from "lucide-react";
 import type { Book } from "../lib/content";
 import { exportBookAudio } from "../lib/audio-export";
+import { PLAYBACK_POSITION_EVENT, readPlaybackPosition } from "../lib/account-storage";
+import { listLocalBooks } from "../lib/local-db";
 import { BookCover } from "./BookCover";
 
 type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
+
+const statusForProgress = (progress: number) => progress >= 100 ? "Selesai" : progress > 0 ? "Sedang dibaca" : "Belum dimulai";
 
 export function HomeView({
   allBooks = [],
@@ -30,13 +34,13 @@ export function HomeView({
   onSelect: (book: Book) => void;
 }) {
   const featured = allBooks[0] ?? null;
-  const continueBooks = allBooks.slice(1, 4);
+  const continueBooks = allBooks.filter((book) => book.progress > 0 && book.progress < 100).slice(0, 3);
   const today = new Date().toLocaleDateString("id-ID", {
     weekday: "long",
     day: "numeric",
     month: "long",
   }).toUpperCase();
-  const doneCount = allBooks.filter((book) => book.generated || book.progress === 100).length;
+  const doneCount = allBooks.filter((book) => book.progress >= 100).length;
 
   return (
     <div className="view home-view">
@@ -62,15 +66,15 @@ export function HomeView({
         <section className="hero-listening">
           <div className="hero-cover-wrap"><BookCover {...featured} large /></div>
           <div className="hero-copy">
-            <span className="soft-label"><span className="pulse-dot" /> {featured.generated ? "AUDIO SIAP" : "SEDANG DIDENGARKAN"}</span>
+            <span className="soft-label"><span className="pulse-dot" /> {featured.generated ? "AUDIO SIAP" : "AUDIO BELUM SIAP"}</span>
             <h2>{featured.title}</h2>
             <p>{featured.author}</p>
-            <div className="chapter-row"><span>{featured.generated ? "Audiobook selesai" : `Progres ${featured.progress}%`}</span><span>{featured.remaining}</span></div>
-            <div className="large-progress"><span style={{ width: `${featured.generated ? 100 : featured.progress}%` }} /></div>
+            <div className="chapter-row"><span>{statusForProgress(featured.progress)}</span><span>{featured.remaining}</span></div>
+            <div className="large-progress"><span style={{ width: `${featured.progress}%` }} /></div>
             <small>Durasi ± {featured.duration}</small>
             <div className="hero-actions">
               <button className="dark-button" onClick={() => onSelect(featured)}>
-                <Play size={17} fill="currentColor" /> {featured.generated ? "Dengarkan" : "Lanjutkan"}
+                <Play size={17} fill="currentColor" /> {featured.progress > 0 ? "Lanjutkan" : "Mulai dengarkan"}
               </button>
             </div>
           </div>
@@ -90,7 +94,7 @@ export function HomeView({
                 <BookCover {...book} />
                 <span className="continue-info">
                   <strong>{book.title}</strong><small>{book.author}</small>
-                  <span className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></span>
+                  <span className="mini-progress"><i style={{ width: `${book.progress}%` }} /></span>
                   <small>{book.remaining}</small>
                 </span>
                 <span className="card-play"><Play size={15} fill="currentColor" /></span>
@@ -102,7 +106,7 @@ export function HomeView({
 
       <div className="lower-grid">
         <section className="insight-card">
-          <div><p className="eyebrow">KOLEKSI</p><h2>{allBooks.length}</h2><span>{doneCount} audiobook selesai</span></div>
+          <div><p className="eyebrow">KOLEKSI</p><h2>{allBooks.length}</h2><span>{doneCount} buku selesai didengarkan</span></div>
           <button className="dark-button" onClick={() => onChange("library")}>Buka perpustakaan <ArrowRight size={16} /></button>
         </section>
         <section className="tip-card">
@@ -135,18 +139,62 @@ export function LibraryView({
   const [draftTitle, setDraftTitle] = useState("");
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState<string | null>(null);
+  const [localProgress, setLocalProgress] = useState<Record<string, number>>({});
 
-  let visibleBooks = allBooks.filter((book) => {
+  useEffect(() => {
+    let active = true;
+    const refreshProgress = async () => {
+      try {
+        const assets = await listLocalBooks();
+        if (!active) return;
+        const next: Record<string, number> = {};
+        for (const asset of assets) {
+          const position = readPlaybackPosition(asset.userId, asset.id);
+          const total = asset.audioChunks.length;
+          if (!position || !total) {
+            next[asset.id] = 0;
+            continue;
+          }
+          const chunkProgress = Math.max(0, Math.min(total, position.chunk + (position.currentTime > 0 ? 0.5 : 0)));
+          next[asset.id] = Math.min(99, Math.max(1, Math.round((chunkProgress / total) * 100)));
+        }
+        setLocalProgress(next);
+      } catch {
+        // Metadata progress remains as a fallback when local assets are unavailable.
+      }
+    };
+
+    void refreshProgress();
+    const handleProgress = () => void refreshProgress();
+    window.addEventListener(PLAYBACK_POSITION_EVENT, handleProgress);
+    window.addEventListener("focus", handleProgress);
+    return () => {
+      active = false;
+      window.removeEventListener(PLAYBACK_POSITION_EVENT, handleProgress);
+      window.removeEventListener("focus", handleProgress);
+    };
+  }, []);
+
+  const booksWithProgress = useMemo(() => allBooks.map((book) => {
+    const progress = Object.prototype.hasOwnProperty.call(localProgress, book.id) ? localProgress[book.id] : book.progress;
+    return {
+      ...book,
+      progress,
+      remaining: progress >= 100 ? "Selesai" : progress > 0 ? `${100 - progress}% tersisa` : "Belum dimulai",
+    };
+  }), [allBooks, localProgress]);
+
+  let visibleBooks = booksWithProgress.filter((book) => {
     const matchesSearch = `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase());
     if (!matchesSearch) return false;
     if (filter === "Sedang dibaca") return book.progress > 0 && book.progress < 100;
-    if (filter === "Selesai") return book.progress === 100 || book.generated;
-    if (filter === "Belum dimulai") return book.progress === 0 && !book.generated;
+    if (filter === "Selesai") return book.progress >= 100;
+    if (filter === "Belum dimulai") return book.progress === 0;
     return true;
   });
 
   if (sort === "Judul A-Z") visibleBooks = [...visibleBooks].sort((a, b) => a.title.localeCompare(b.title));
-  else if (sort === "Progres") visibleBooks = [...visibleBooks].sort((a, b) => (b.generated ? 100 : b.progress) - (a.generated ? 100 : a.progress));
+  else if (sort === "Progres") visibleBooks = [...visibleBooks].sort((a, b) => b.progress - a.progress);
   else visibleBooks = [...visibleBooks].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
   const downloadAudio = async (book: Book) => {
@@ -204,8 +252,8 @@ export function LibraryView({
                 </form>
               ) : <h3>{book.title}</h3>}
               <span>{book.author}</span>
-              <div className="book-meta-row"><small><Headphones size={13} />{book.duration}</small><small>{book.generated ? "Audio siap" : `${book.progress}%`}</small></div>
-              <div className="mini-progress"><i style={{ width: `${book.generated ? 100 : book.progress}%` }} /></div>
+              <div className="book-meta-row"><small><Headphones size={13} />{book.duration}</small><small>{statusForProgress(book.progress)} · {book.progress}%</small></div>
+              <div className="mini-progress"><i style={{ width: `${book.progress}%` }} /></div>
               {!book.id.startsWith("demo-") && (
                 <div className="book-actions">
                   <button onClick={() => { setEditing(book.id); setDraftTitle(book.title); }}><Pencil size={13} /> Ubah judul</button>
