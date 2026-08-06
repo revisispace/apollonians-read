@@ -7,18 +7,22 @@ export type LibriVoxBook = {
 };
 export type LibriVoxSearchField = "title" | "author" | "genre";
 type RawRecord = Record<string, unknown>;
-type ApiPayload = { books?: RawRecord[] };
+type SearchPayload = { response?: { docs?: RawRecord[] } };
+type MetadataPayload = { metadata?: RawRecord; files?: RawRecord[] };
 type RequestOptions = { signal?: AbortSignal; cacheTtlMs?: number };
 
-const API_BASE = "https://librivox.org/api/feed/audiobooks";
+const ARCHIVE_SEARCH_BASE = "https://archive.org/advancedsearch.php";
+const ARCHIVE_METADATA_BASE = "https://archive.org/metadata";
+const ARCHIVE_DOWNLOAD_BASE = "https://archive.org/download";
 const SEARCH_CACHE_TTL = 5 * 60 * 1000;
 const DETAIL_CACHE_TTL = 30 * 60 * 1000;
-const REQUEST_TIMEOUT = 15000;
+const REQUEST_TIMEOUT = 18000;
 const responseCache = new Map<string, { expiresAt: number; books: LibriVoxBook[] }>();
 const detailRequests = new Map<string, Promise<LibriVoxBook>>();
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
 const numeric = (value: unknown) => { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; };
+const list = (value: unknown): string[] => Array.isArray(value) ? value.map(text).filter(Boolean) : text(value) ? [text(value)] : [];
 const records = (value: unknown): RawRecord[] => Array.isArray(value) ? value.filter((item): item is RawRecord => Boolean(item) && typeof item === "object") : [];
 const abortError = () => new DOMException("Permintaan dibatalkan.", "AbortError");
 
@@ -29,142 +33,194 @@ function stripMarkup(value: string) {
   element.innerHTML = value;
   return (element.textContent ?? "").replace(/\s+/g, " ").trim();
 }
+
 function durationToSeconds(value: string) {
   const parts = value.split(":").map(Number);
   if (parts.some((part) => !Number.isFinite(part))) return 0;
   return parts.reduce((total, part) => total * 60 + part, 0);
 }
-function normalizeReader(raw: RawRecord): LibriVoxReader {
-  const display = text(raw.display_name) || [text(raw.first_name), text(raw.last_name)].filter(Boolean).join(" ") || text(raw.name);
-  return { id: text(raw.id) || undefined, name: display || "Pembaca LibriVox" };
+
+function formatDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = Math.round(seconds % 60);
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`
+    : `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
-function normalizeSection(raw: RawRecord, fallbackIndex: number): LibriVoxSection | null {
-  const audioUrl = text(raw.listen_url) || text(raw.audio_url) || text(raw.url) || text(raw.mp3_url);
-  if (!audioUrl) return null;
-  const duration = text(raw.playtime) || text(raw.duration);
-  const sectionNumber = numeric(raw.section_number) || numeric(raw.number) || fallbackIndex + 1;
-  return {
-    id: text(raw.id) || `${sectionNumber}-${audioUrl}`,
-    number: sectionNumber,
-    title: text(raw.title) || `Bagian ${sectionNumber}`,
-    audioUrl,
-    duration,
-    durationSeconds: numeric(raw.playtime_secs) || numeric(raw.duration_seconds) || durationToSeconds(duration),
-    readers: records(raw.readers).map(normalizeReader),
-  };
+
+function archiveCover(identifier: string) {
+  return identifier ? `https://archive.org/services/img/${encodeURIComponent(identifier)}` : "";
 }
-export function normalizeLibriVoxBook(raw: RawRecord): LibriVoxBook {
-  const author = records(raw.authors)
-    .map((item) => [text(item.first_name), text(item.last_name)].filter(Boolean).join(" "))
-    .filter(Boolean).join(", ") || "Penulis tidak diketahui";
-  const sections = records(raw.sections).map(normalizeSection).filter((item): item is LibriVoxSection => Boolean(item)).sort((a, b) => a.number - b.number);
+
+function normalizeSearchBook(raw: RawRecord): LibriVoxBook {
+  const identifier = text(raw.identifier);
+  const author = list(raw.creator).join(", ") || "Penulis tidak diketahui";
+  const genres = list(raw.subject);
+  const year = text(raw.date).slice(0, 4);
   return {
-    id: text(raw.id), title: text(raw.title) || "Audiobook tanpa judul", description: stripMarkup(text(raw.description)), author,
-    language: text(raw.language) || "Tidak diketahui", copyrightYear: text(raw.copyright_year), totalTime: text(raw.totaltime),
-    totalTimeSeconds: numeric(raw.totaltimesecs), sectionCount: numeric(raw.num_sections) || sections.length,
-    coverUrl: text(raw.coverart_jpg) || text(raw.coverart_thumbnail), thumbnailUrl: text(raw.coverart_thumbnail) || text(raw.coverart_jpg),
-    textSourceUrl: text(raw.url_text_source), librivoxUrl: text(raw.url_librivox), archiveUrl: text(raw.url_iarchive),
-    genres: records(raw.genres).map((genre) => text(genre.name) || text(genre.genre)).filter(Boolean), sections,
+    id: identifier,
+    title: text(raw.title) || "Audiobook tanpa judul",
+    description: stripMarkup(text(raw.description)),
+    author,
+    language: list(raw.language).join(", ") || "Tidak diketahui",
+    copyrightYear: year,
+    totalTime: "",
+    totalTimeSeconds: 0,
+    sectionCount: 0,
+    coverUrl: archiveCover(identifier),
+    thumbnailUrl: archiveCover(identifier),
+    textSourceUrl: "",
+    librivoxUrl: "",
+    archiveUrl: identifier ? `https://archive.org/details/${encodeURIComponent(identifier)}` : "",
+    genres,
+    sections: [],
   };
 }
 
-function jsonp(params: URLSearchParams, signal?: AbortSignal): Promise<ApiPayload> {
-  if (typeof document === "undefined") return Promise.reject(new Error("JSONP hanya tersedia di browser."));
-  if (signal?.aborted) return Promise.reject(abortError());
-  return new Promise((resolve, reject) => {
-    const callback = `__apollonians_librivox_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    let settled = false;
-    const finish = (problem?: Error, payload?: ApiPayload) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      signal?.removeEventListener("abort", onAbort);
-      script.remove();
-      delete (window as unknown as Record<string, unknown>)[callback];
-      if (problem) reject(problem); else resolve(payload ?? {});
-    };
-    const onAbort = () => finish(abortError());
-    const timeout = window.setTimeout(() => finish(new Error("Katalog LibriVox melewati batas waktu.")), REQUEST_TIMEOUT);
-    (window as unknown as Record<string, unknown>)[callback] = (payload: ApiPayload) => finish(undefined, payload);
-    signal?.addEventListener("abort", onAbort, { once: true });
-    const jsonpParams = new URLSearchParams(params);
-    // LibriVox returns JSONP when a callback is supplied; format must remain json.
-    jsonpParams.set("format", "json");
-    jsonpParams.set("callback", callback);
-    script.src = `${API_BASE}/?${jsonpParams.toString()}`;
-    script.async = true;
-    script.referrerPolicy = "no-referrer";
-    script.onerror = () => finish(new Error("Katalog LibriVox tidak dapat dijangkau melalui JSONP."));
-    document.head.appendChild(script);
+function audioFiles(files: RawRecord[]) {
+  return files
+    .filter((file) => {
+      const name = text(file.name).toLowerCase();
+      const format = text(file.format).toLowerCase();
+      const source = text(file.source).toLowerCase();
+      return name.endsWith(".mp3") && !name.includes("_sample") && !name.includes("zip") && (
+        format.includes("vbr mp3") || format.includes("64kbps mp3") || format.includes("128kbps mp3") || source === "original"
+      );
+    })
+    .sort((a, b) => text(a.name).localeCompare(text(b.name), undefined, { numeric: true }));
+}
+
+function findMetadataUrl(metadata: RawRecord, pattern: RegExp) {
+  const candidates = [
+    ...list(metadata.identifier),
+    ...list(metadata.source),
+    ...list(metadata.external_identifier),
+    ...list(metadata.description),
+    ...list(metadata.notes),
+  ];
+  const joined = candidates.join(" ");
+  const match = joined.match(pattern);
+  return match?.[0] ?? "";
+}
+
+function normalizeMetadataBook(identifier: string, payload: MetadataPayload): LibriVoxBook {
+  const metadata = payload.metadata ?? {};
+  const files = audioFiles(records(payload.files));
+  const author = list(metadata.creator).join(", ") || "Penulis tidak diketahui";
+  const readerNames = list(metadata.contributor).filter((value) => /reader|librivox/i.test(value) || value.length > 1);
+  const readers = readerNames.length ? readerNames.map((name) => ({ name })) : [];
+  const sections = files.map((file, index) => {
+    const name = text(file.name);
+    const title = text(file.title) || name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").replace(/^\d+\s*/, "").trim() || `Bagian ${index + 1}`;
+    const duration = text(file.length) || text(file.duration);
+    const durationSeconds = numeric(file.length) || numeric(file.duration) || durationToSeconds(duration);
+    return {
+      id: `${identifier}-${name}`,
+      number: index + 1,
+      title,
+      audioUrl: `${ARCHIVE_DOWNLOAD_BASE}/${encodeURIComponent(identifier)}/${name.split("/").map(encodeURIComponent).join("/")}`,
+      duration: duration || formatDuration(durationSeconds),
+      durationSeconds,
+      readers,
+    } satisfies LibriVoxSection;
   });
+  const totalTimeSeconds = sections.reduce((total, section) => total + section.durationSeconds, 0);
+  const librivoxUrl = findMetadataUrl(metadata, /https?:\/\/(?:www\.)?librivox\.org\/[^\s"<>]+/i);
+  const textSourceUrl = findMetadataUrl(metadata, /https?:\/\/(?:www\.)?(?:gutenberg\.org|archive\.org\/details)\/[^\s"<>]+/i);
+  return {
+    id: identifier,
+    title: text(metadata.title) || "Audiobook tanpa judul",
+    description: stripMarkup(text(metadata.description)),
+    author,
+    language: list(metadata.language).join(", ") || "Tidak diketahui",
+    copyrightYear: text(metadata.date).slice(0, 4),
+    totalTime: formatDuration(totalTimeSeconds),
+    totalTimeSeconds,
+    sectionCount: sections.length,
+    coverUrl: archiveCover(identifier),
+    thumbnailUrl: archiveCover(identifier),
+    textSourceUrl,
+    librivoxUrl,
+    archiveUrl: `https://archive.org/details/${encodeURIComponent(identifier)}`,
+    genres: list(metadata.subject),
+    sections,
+  };
 }
 
-async function fetchJson(params: URLSearchParams, signal?: AbortSignal): Promise<ApiPayload> {
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener("abort", onAbort, { once: true });
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
   try {
-    const fetchParams = new URLSearchParams(params);
-    fetchParams.set("format", "json");
-    const response = await fetch(`${API_BASE}/?${fetchParams.toString()}`, {
+    const response = await fetch(url, {
       cache: "no-store",
       mode: "cors",
       credentials: "omit",
       referrerPolicy: "no-referrer",
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`LibriVox merespons ${response.status}.`);
-    return await response.json() as ApiPayload;
+    if (!response.ok) throw new Error(`Internet Archive merespons ${response.status}.`);
+    return await response.json() as T;
+  } catch (problem) {
+    if (signal?.aborted) throw abortError();
+    if (problem instanceof DOMException && problem.name === "AbortError") {
+      throw new Error("Permintaan katalog melewati batas waktu.");
+    }
+    throw problem;
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener("abort", onAbort);
   }
 }
 
-async function request(params: URLSearchParams, options: RequestOptions = {}) {
-  params.set("coverart", "1");
-  const cacheKey = params.toString();
-  const cached = responseCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.books;
-  if (options.signal?.aborted) throw abortError();
+function escapeArchiveQuery(value: string) {
+  return value.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, "\\$&");
+}
 
-  let payload: ApiPayload;
-  let directError: unknown;
-  try {
-    payload = await fetchJson(params, options.signal);
-  } catch (problem) {
-    if (options.signal?.aborted || (problem instanceof DOMException && problem.name === "AbortError")) throw abortError();
-    directError = problem;
-    try {
-      payload = await jsonp(params, options.signal);
-    } catch (jsonpError) {
-      if (options.signal?.aborted || (jsonpError instanceof DOMException && jsonpError.name === "AbortError")) throw abortError();
-      const directMessage = directError instanceof Error ? directError.message : "request langsung gagal";
-      const jsonpMessage = jsonpError instanceof Error ? jsonpError.message : "fallback JSONP gagal";
-      throw new Error(`LibriVox sedang tidak dapat dijangkau. ${directMessage}; ${jsonpMessage}`);
-    }
-  }
-
-  const books = Array.isArray(payload.books) ? payload.books.map(normalizeLibriVoxBook) : [];
-  responseCache.set(cacheKey, { expiresAt: Date.now() + (options.cacheTtlMs ?? SEARCH_CACHE_TTL), books });
-  return books;
+function buildArchiveQuery(query: string, field: LibriVoxSearchField) {
+  const safe = escapeArchiveQuery(query.trim());
+  const fieldName = field === "author" ? "creator" : field === "genre" ? "subject" : "title";
+  return `collection:(librivoxaudio) AND mediatype:(audio) AND ${fieldName}:("${safe}")`;
 }
 
 export async function searchLibriVoxBooks({ query = "", field = "title", limit = 8, offset = 0, signal }: { query?: string; field?: LibriVoxSearchField; limit?: number; offset?: number; signal?: AbortSignal }) {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  if (query.trim()) params.set(field, query.trim());
-  return request(params, { signal, cacheTtlMs: SEARCH_CACHE_TTL });
+  if (!query.trim()) return [];
+  if (signal?.aborted) throw abortError();
+  const page = Math.floor(offset / limit) + 1;
+  const params = new URLSearchParams({
+    q: buildArchiveQuery(query, field),
+    rows: String(limit),
+    page: String(page),
+    output: "json",
+    sort: "downloads desc",
+  });
+  for (const fieldName of ["identifier", "title", "creator", "description", "language", "subject", "date"]) {
+    params.append("fl[]", fieldName);
+  }
+  const cacheKey = `search:${params.toString()}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.books;
+  const payload = await fetchJson<SearchPayload>(`${ARCHIVE_SEARCH_BASE}?${params.toString()}`, signal);
+  const books = records(payload.response?.docs).map(normalizeSearchBook).filter((book) => book.id);
+  responseCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL, books });
+  return books;
 }
 
 export function getLibriVoxBook(id: string, signal?: AbortSignal) {
   const existing = detailRequests.get(id);
   if (existing) return existing;
-  const detailRequest = request(new URLSearchParams({ id, extended: "1" }), { signal, cacheTtlMs: DETAIL_CACHE_TTL })
-    .then((books) => {
-      if (!books[0]) throw new Error("Audiobook LibriVox tidak ditemukan.");
-      return books[0];
+  const cacheKey = `detail:${id}`;
+  const cached = responseCache.get(cacheKey)?.books[0];
+  if (cached && (responseCache.get(cacheKey)?.expiresAt ?? 0) > Date.now()) return Promise.resolve(cached);
+  const detailRequest = fetchJson<MetadataPayload>(`${ARCHIVE_METADATA_BASE}/${encodeURIComponent(id)}`, signal)
+    .then((payload) => {
+      const book = normalizeMetadataBook(id, payload);
+      if (!book.sections.length) throw new Error("Rekaman ini tidak memiliki file MP3 yang dapat diputar.");
+      responseCache.set(cacheKey, { expiresAt: Date.now() + DETAIL_CACHE_TTL, books: [book] });
+      return book;
     })
     .finally(() => detailRequests.delete(id));
   detailRequests.set(id, detailRequest);
