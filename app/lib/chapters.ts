@@ -35,6 +35,16 @@ export function normalizeChapters(chapters: DetectedChapter[], maxChapters = 80)
     .slice(0, maxChapters);
 }
 
+export function chaptersFromAudioChunks(chunkCount: number): DetectedChapter[] {
+  const total = Math.max(0, Math.floor(chunkCount));
+  if (!total) return [];
+  return Array.from({ length: total }, (_, index) => ({
+    id: `audio-chapter-${index + 1}`,
+    title: `Bagian audio ${index + 1}`,
+    progress: index / total,
+  }));
+}
+
 function readManagedChapters(maxChapters: number) {
   if (typeof window === "undefined" || !detectionContext) return null;
   try {
