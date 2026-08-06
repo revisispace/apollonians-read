@@ -1,307 +1,51 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowRight,
-  BookOpen,
-  Check,
-  Download,
-  FileAudio,
-  Headphones,
-  Pencil,
-  Play,
-  Plus,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { ArrowRight, BookOpen, Check, Download, FileAudio, Headphones, Pencil, Play, Plus, Sparkles, Trash2, Wifi } from "lucide-react";
 import type { Book } from "../lib/content";
+import type { LibriVoxBook } from "../lib/librivox";
 import { exportBookAudio } from "../lib/audio-export";
 import { PLAYBACK_POSITION_EVENT, readPlaybackPosition } from "../lib/account-storage";
 import { listLocalBooks } from "../lib/local-db";
 import { BookCover } from "./BookCover";
 
-type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings") => void;
-
+type ChangeView = (view: "home" | "library" | "studio" | "activity" | "settings" | "librivox") => void;
 const statusForProgress = (progress: number) => progress >= 100 ? "Selesai" : progress > 0 ? "Sedang dibaca" : "Belum dimulai";
 
-export function HomeView({
-  allBooks = [],
-  onChange,
-  onSelect,
-}: {
-  allBooks: Book[];
-  onChange: ChangeView;
-  onSelect: (book: Book) => void;
-}) {
+export function HomeView({ allBooks = [], onChange, onSelect }: { allBooks: Book[]; onChange: ChangeView; onSelect: (book: Book) => void }) {
   const featured = allBooks[0] ?? null;
   const continueBooks = allBooks.filter((book) => book.progress > 0 && book.progress < 100).slice(0, 3);
-  const today = new Date().toLocaleDateString("id-ID", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).toUpperCase();
+  const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
   const doneCount = allBooks.filter((book) => book.progress >= 100).length;
-
-  return (
-    <div className="view home-view">
-      <div className="welcome-row">
-        <div>
-          <p className="eyebrow">{today}</p>
-          <h1>Selamat datang kembali.</h1>
-          <p>{allBooks.length ? "Lanjutkan cerita yang sempat tertunda." : "Saatnya mengubah bacaan menjadi pengalaman."}</p>
-        </div>
-        <button className="primary-button" onClick={() => onChange("studio")}>
-          <Plus size={18} /> Buat audiobook
-        </button>
-      </div>
-
-      {!featured ? (
-        <section className="empty-state">
-          <BookOpen size={30} />
-          <h3>Belum ada audiobook</h3>
-          <p>Buat audiobook pertamamu dari tautan atau file buku.</p>
-          <button className="primary-button" onClick={() => onChange("studio")}>Buat sekarang</button>
-        </section>
-      ) : (
-        <section className="hero-listening">
-          <div className="hero-cover-wrap"><BookCover {...featured} large /></div>
-          <div className="hero-copy">
-            <span className="soft-label"><span className="pulse-dot" /> {featured.generated ? "AUDIO SIAP" : "AUDIO BELUM SIAP"}</span>
-            <h2>{featured.title}</h2>
-            <p>{featured.author}</p>
-            <div className="chapter-row"><span>{statusForProgress(featured.progress)}</span><span>{featured.remaining}</span></div>
-            <div className="large-progress"><span style={{ width: `${featured.progress}%` }} /></div>
-            <small>Durasi ± {featured.duration}</small>
-            <div className="hero-actions">
-              <button className="dark-button" onClick={() => onSelect(featured)}>
-                <Play size={17} fill="currentColor" /> {featured.progress > 0 ? "Lanjutkan" : "Mulai dengarkan"}
-              </button>
-            </div>
-          </div>
-          <div className="hero-quote"><span>“</span><p>Bacaan yang baik layak didengar dengan nyaman.</p><small>— Apollonians Read</small></div>
-        </section>
-      )}
-
-      {continueBooks.length > 0 && (
-        <section className="section-block">
-          <div className="section-heading">
-            <div><p className="eyebrow">KEMBALI MENDENGARKAN</p><h2>Lanjutkan ceritamu</h2></div>
-            <button onClick={() => onChange("library")}>Lihat semua <ArrowRight size={16} /></button>
-          </div>
-          <div className="continue-grid">
-            {continueBooks.map((book) => (
-              <button className="continue-card" key={book.id} onClick={() => onSelect(book)}>
-                <BookCover {...book} />
-                <span className="continue-info">
-                  <strong>{book.title}</strong><small>{book.author}</small>
-                  <span className="mini-progress"><i style={{ width: `${book.progress}%` }} /></span>
-                  <small>{book.remaining}</small>
-                </span>
-                <span className="card-play"><Play size={15} fill="currentColor" /></span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="lower-grid">
-        <section className="insight-card">
-          <div><p className="eyebrow">KOLEKSI</p><h2>{allBooks.length}</h2><span>{doneCount} buku selesai didengarkan</span></div>
-          <button className="dark-button" onClick={() => onChange("library")}>Buka perpustakaan <ArrowRight size={16} /></button>
-        </section>
-        <section className="tip-card">
-          <span className="tip-icon"><Sparkles size={19} /></span>
-          <div><p className="eyebrow">TIPS</p><h3>Atur preferensi audiomu</h3><p>Normalisasi volume dan unduhan otomatis tersedia di Pengaturan.</p><button onClick={() => onChange("settings")}>Buka pengaturan <ArrowRight size={15} /></button></div>
-        </section>
-      </div>
-    </div>
-  );
+  return <div className="view home-view">
+    <div className="welcome-row"><div><p className="eyebrow">{today}</p><h1>Selamat datang kembali.</h1><p>{allBooks.length ? "Lanjutkan cerita yang sempat tertunda." : "Saatnya mengubah bacaan menjadi pengalaman."}</p></div><button className="primary-button" onClick={() => onChange("studio")}><Plus size={18}/> Buat audiobook</button></div>
+    {!featured ? <section className="empty-state"><BookOpen size={30}/><h3>Belum ada audiobook</h3><p>Buat audiobook pertamamu dari tautan atau file buku.</p><button className="primary-button" onClick={() => onChange("studio")}>Buat sekarang</button></section> : <section className="hero-listening"><div className="hero-cover-wrap"><BookCover {...featured} large/></div><div className="hero-copy"><span className="soft-label"><span className="pulse-dot"/> {featured.generated ? "AUDIO SIAP" : "AUDIO BELUM SIAP"}</span><h2>{featured.title}</h2><p>{featured.author}</p><div className="chapter-row"><span>{statusForProgress(featured.progress)}</span><span>{featured.remaining}</span></div><div className="large-progress"><span style={{width:`${featured.progress}%`}}/></div><small>Durasi ± {featured.duration}</small><div className="hero-actions"><button className="dark-button" onClick={() => onSelect(featured)}><Play size={17} fill="currentColor"/> {featured.progress > 0 ? "Lanjutkan" : "Mulai dengarkan"}</button></div></div><div className="hero-quote"><span>“</span><p>Bacaan yang baik layak didengar dengan nyaman.</p><small>— Apollonians Read</small></div></section>}
+    {continueBooks.length > 0 && <section className="section-block"><div className="section-heading"><div><p className="eyebrow">KEMBALI MENDENGARKAN</p><h2>Lanjutkan ceritamu</h2></div><button onClick={() => onChange("library")}>Lihat semua <ArrowRight size={16}/></button></div><div className="continue-grid">{continueBooks.map((book)=><button className="continue-card" key={book.id} onClick={()=>onSelect(book)}><BookCover {...book}/><span className="continue-info"><strong>{book.title}</strong><small>{book.author}</small><span className="mini-progress"><i style={{width:`${book.progress}%`}}/></span><small>{book.remaining}</small></span><span className="card-play"><Play size={15} fill="currentColor"/></span></button>)}</div></section>}
+    <div className="lower-grid"><section className="insight-card"><div><p className="eyebrow">KOLEKSI</p><h2>{allBooks.length}</h2><span>{doneCount} buku selesai didengarkan</span></div><button className="dark-button" onClick={()=>onChange("library")}>Buka perpustakaan <ArrowRight size={16}/></button></section><section className="tip-card"><span className="tip-icon"><Sparkles size={19}/></span><div><p className="eyebrow">TIPS</p><h3>Atur preferensi audiomu</h3><p>Normalisasi volume dan unduhan otomatis tersedia di Pengaturan.</p><button onClick={()=>onChange("settings")}>Buka pengaturan <ArrowRight size={15}/></button></div></section></div>
+  </div>;
 }
 
-export function LibraryView({
-  allBooks,
-  query,
-  onChange,
-  onSelect,
-  onRename,
-  onDelete,
-}: {
-  allBooks: Book[];
-  query: string;
-  onChange: ChangeView;
-  onSelect: (book: Book) => void;
-  onRename: (book: Book, title: string) => Promise<void>;
-  onDelete: (book: Book) => Promise<void>;
-}) {
-  const [filter, setFilter] = useState("Semua buku");
-  const [sort, setSort] = useState("Terbaru");
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [message, setMessage] = useState("");
-  const [exporting, setExporting] = useState<string | null>(null);
-  const [localProgress, setLocalProgress] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    let active = true;
-    const refreshProgress = async () => {
-      try {
-        const assets = await listLocalBooks();
-        if (!active) return;
-        const next: Record<string, number> = {};
-        for (const asset of assets) {
-          const position = readPlaybackPosition(asset.userId, asset.id);
-          const total = asset.audioChunks.length;
-          if (!position || !total) {
-            next[asset.id] = 0;
-            continue;
-          }
-          const chunkProgress = Math.max(0, Math.min(total, position.chunk + (position.currentTime > 0 ? 0.5 : 0)));
-          next[asset.id] = Math.min(99, Math.max(1, Math.round((chunkProgress / total) * 100)));
-        }
-        setLocalProgress(next);
-      } catch {
-        // Metadata progress remains as a fallback when local assets are unavailable.
-      }
-    };
-
-    void refreshProgress();
-    const handleProgress = () => void refreshProgress();
-    window.addEventListener(PLAYBACK_POSITION_EVENT, handleProgress);
-    window.addEventListener("focus", handleProgress);
-    return () => {
-      active = false;
-      window.removeEventListener(PLAYBACK_POSITION_EVENT, handleProgress);
-      window.removeEventListener("focus", handleProgress);
-    };
-  }, []);
-
-  const booksWithProgress = useMemo(() => allBooks.map((book) => {
-    const progress = Object.prototype.hasOwnProperty.call(localProgress, book.id) ? localProgress[book.id] : book.progress;
-    return {
-      ...book,
-      progress,
-      remaining: progress >= 100 ? "Selesai" : progress > 0 ? `${100 - progress}% tersisa` : "Belum dimulai",
-    };
-  }), [allBooks, localProgress]);
-
-  let visibleBooks = booksWithProgress.filter((book) => {
-    const matchesSearch = `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(query.toLowerCase());
-    if (!matchesSearch) return false;
-    if (filter === "Sedang dibaca") return book.progress > 0 && book.progress < 100;
-    if (filter === "Selesai") return book.progress >= 100;
-    if (filter === "Belum dimulai") return book.progress === 0;
-    return true;
-  });
-
-  if (sort === "Judul A-Z") visibleBooks = [...visibleBooks].sort((a, b) => a.title.localeCompare(b.title));
-  else if (sort === "Progres") visibleBooks = [...visibleBooks].sort((a, b) => b.progress - a.progress);
-  else visibleBooks = [...visibleBooks].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-
-  const downloadAudio = async (book: Book) => {
-    setExporting(book.id);
-    setMessage("");
-    try {
-      const parts = await exportBookAudio(book);
-      setMessage(`${parts} bagian audio berhasil diekspor sebagai ZIP.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Audio gagal diekspor.");
-    } finally {
-      setExporting(null);
-    }
-  };
-
-  return (
-    <div className="view library-view">
-      <div className="page-title-row">
-        <div><p className="eyebrow">KOLEKSI PRIBADI</p><h1>Perpustakaan</h1><p>{allBooks.length ? `${visibleBooks.length} dari ${allBooks.length} buku ditampilkan.` : "Semua cerita yang siap menemani harimu."}</p></div>
-        <button className="primary-button" onClick={() => onChange("studio")}><Plus size={18} /> Tambah buku</button>
-      </div>
-
-      <div className="filter-row">
-        {["Semua buku", "Sedang dibaca", "Selesai", "Belum dimulai"].map((item) => (
-          <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item}</button>
-        ))}
-        <select className="sort-button" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Urutkan buku">
-          <option>Terbaru</option><option>Judul A-Z</option><option>Progres</option>
-        </select>
-      </div>
-
-      <div className="library-grid">
-        {visibleBooks.map((book) => (
-          <article className="library-card" key={book.id}>
-            <button className="library-cover-button" onClick={() => onSelect(book)} aria-label={`Putar ${book.title}`}>
-              <BookCover {...book} /><span><Play size={19} fill="currentColor" /></span>
-            </button>
-            <div className="library-meta">
-              <p>{book.localOnly ? "LOKAL · " : ""}{book.category}</p>
-              {editing === book.id ? (
-                <form className="title-editor" onSubmit={async (event) => {
-                  event.preventDefault();
-                  const title = draftTitle.trim();
-                  if (!title) return;
-                  try {
-                    await onRename(book, title);
-                    setEditing(null);
-                    setMessage("Judul berhasil diubah.");
-                  } catch (error) {
-                    setMessage(error instanceof Error ? error.message : "Judul gagal diubah.");
-                  }
-                }}>
-                  <input maxLength={300} autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} aria-label="Judul baru" />
-                  <button>Simpan</button><button type="button" onClick={() => setEditing(null)}>Batal</button>
-                </form>
-              ) : <h3>{book.title}</h3>}
-              <span>{book.author}</span>
-              <div className="book-meta-row"><small><Headphones size={13} />{book.duration}</small><small>{statusForProgress(book.progress)} · {book.progress}%</small></div>
-              <div className="mini-progress"><i style={{ width: `${book.progress}%` }} /></div>
-              {!book.id.startsWith("demo-") && (
-                <div className="book-actions">
-                  <button onClick={() => { setEditing(book.id); setDraftTitle(book.title); }}><Pencil size={13} /> Ubah judul</button>
-                  <button disabled={!book.generated || exporting === book.id} onClick={() => downloadAudio(book)}>
-                    <Download size={13} /> {exporting === book.id ? "Mengekspor…" : "Unduh audio"}
-                  </button>
-                  <button className="delete-book" onClick={async () => {
-                    if (!window.confirm(`Hapus “${book.title}” beserta audio lokalnya?`)) return;
-                    try { await onDelete(book); setMessage("Buku berhasil dihapus."); }
-                    catch (error) { setMessage(error instanceof Error ? error.message : "Buku gagal dihapus."); }
-                  }}><Trash2 size={13} /> Hapus</button>
-                </div>
-              )}
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {!visibleBooks.length && (
-        <div className="empty-state">
-          <BookOpen size={30} /><h3>Buku tidak ditemukan</h3>
-          <p>{allBooks.length ? "Coba kata kunci atau filter lain." : "Perpustakaanmu masih kosong."}</p>
-          {!allBooks.length && <button className="primary-button" onClick={() => onChange("studio")}>Buat audiobook</button>}
-        </div>
-      )}
-      {message && <p className="catalog-message">{message}</p>}
-    </div>
-  );
+export function LibraryView({ allBooks, savedLibriVox, query, onChange, onSelect, onOpenLibriVox, onRename, onDelete, onRemoveLibriVox }: { allBooks: Book[]; savedLibriVox: LibriVoxBook[]; query: string; onChange: ChangeView; onSelect: (book: Book)=>void; onOpenLibriVox:(book:LibriVoxBook)=>void; onRename:(book:Book,title:string)=>Promise<void>; onDelete:(book:Book)=>Promise<void>; onRemoveLibriVox:(book:LibriVoxBook)=>void }) {
+  const [statusFilter,setStatusFilter]=useState("Semua status"); const [sourceFilter,setSourceFilter]=useState("Semua sumber"); const [sort,setSort]=useState("Terbaru"); const [editing,setEditing]=useState<string|null>(null); const [draftTitle,setDraftTitle]=useState(""); const [message,setMessage]=useState(""); const [exporting,setExporting]=useState<string|null>(null); const [localProgress,setLocalProgress]=useState<Record<string,number>>({});
+  useEffect(()=>{let active=true; const refresh=async()=>{try{const assets=await listLocalBooks(); if(!active)return; const next:Record<string,number>={}; for(const asset of assets){const position=readPlaybackPosition(asset.userId,asset.id); const total=asset.audioChunks.length; next[asset.id]=!position||!total?0:Math.min(99,Math.max(1,Math.round((Math.max(0,Math.min(total,position.chunk+(position.currentTime>0?.5:0)))/total)*100)));} setLocalProgress(next);}catch{}}; void refresh(); const handler=()=>void refresh(); window.addEventListener(PLAYBACK_POSITION_EVENT,handler); window.addEventListener("focus",handler); return()=>{active=false;window.removeEventListener(PLAYBACK_POSITION_EVENT,handler);window.removeEventListener("focus",handler);};},[]);
+  const personal=useMemo(()=>allBooks.map((book)=>{const progress=Object.prototype.hasOwnProperty.call(localProgress,book.id)?localProgress[book.id]:book.progress; return {...book,progress,remaining:progress>=100?"Selesai":progress>0?`${100-progress}% tersisa`:"Belum dimulai"};}),[allBooks,localProgress]);
+  const unified=useMemo(()=>[
+    ...personal.map((book)=>({kind:"personal" as const,id:book.id,title:book.title,author:book.author,category:book.category,progress:book.progress,duration:book.duration,createdAt:book.createdAt??"",book})),
+    ...savedLibriVox.map((book)=>{const pos=readPlaybackPosition("",""); return {kind:"librivox" as const,id:`librivox-${book.id}`,title:book.title,author:book.author,category:"LibriVox",progress:0,duration:book.totalTime||`${book.sectionCount} bagian`,createdAt:"",book};})
+  ],[personal,savedLibriVox]);
+  let visible=unified.filter((item)=>{const matches=`${item.title} ${item.author} ${item.category}`.toLowerCase().includes(query.toLowerCase()); if(!matches)return false; if(sourceFilter==="Buku pribadi"&&item.kind!=="personal")return false; if(sourceFilter==="LibriVox"&&item.kind!=="librivox")return false; if(statusFilter==="Sedang dibaca")return item.progress>0&&item.progress<100; if(statusFilter==="Selesai")return item.progress>=100; if(statusFilter==="Belum dimulai")return item.progress===0; return true;});
+  if(sort==="Judul A-Z")visible=[...visible].sort((a,b)=>a.title.localeCompare(b.title)); else if(sort==="Progres")visible=[...visible].sort((a,b)=>b.progress-a.progress); else visible=[...visible].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  const downloadAudio=async(book:Book)=>{setExporting(book.id);setMessage("");try{const parts=await exportBookAudio(book);setMessage(`${parts} bagian audio berhasil diekspor sebagai ZIP.`);}catch(error){setMessage(error instanceof Error?error.message:"Audio gagal diekspor.");}finally{setExporting(null);}};
+  return <div className="view library-view">
+    <div className="page-title-row"><div><p className="eyebrow">KOLEKSI TERPADU</p><h1>Perpustakaan</h1><p>{visible.length} dari {unified.length} buku ditampilkan · {personal.length} pribadi · {savedLibriVox.length} LibriVox.</p></div><div className="book-actions"><button className="primary-button" onClick={()=>onChange("studio")}><Plus size={18}/> Tambah buku</button><button onClick={()=>onChange("librivox")}><Wifi size={16}/> Cari LibriVox</button></div></div>
+    <div className="filter-row">{["Semua status","Sedang dibaca","Selesai","Belum dimulai"].map((item)=><button key={item} className={statusFilter===item?"active":""} onClick={()=>setStatusFilter(item)}>{item}</button>)}<select className="sort-button" value={sourceFilter} onChange={(e)=>setSourceFilter(e.target.value)} aria-label="Filter sumber"><option>Semua sumber</option><option>Buku pribadi</option><option>LibriVox</option></select><select className="sort-button" value={sort} onChange={(e)=>setSort(e.target.value)} aria-label="Urutkan buku"><option>Terbaru</option><option>Judul A-Z</option><option>Progres</option></select></div>
+    <div className="library-grid">{visible.map((item)=><article className="library-card" key={item.id}>
+      <button className="library-cover-button" onClick={()=>item.kind==="personal"?onSelect(item.book):onOpenLibriVox(item.book)} aria-label={`Putar ${item.title}`}>{item.kind==="personal"?<BookCover {...item.book}/>:<span className="librivox-library-cover">{item.book.thumbnailUrl||item.book.coverUrl?<img src={item.book.thumbnailUrl||item.book.coverUrl} alt="" loading="lazy"/>:<BookOpen size={34}/>}</span>}<span><Play size={19} fill="currentColor"/></span></button>
+      <div className="library-meta"><p>{item.kind==="personal"?(item.book.localOnly?"LOKAL · BUKU PRIBADI":"BUKU PRIBADI"):"LIBRIVOX · STREAMING"}</p>{item.kind==="personal"&&editing===item.book.id?<form className="title-editor" onSubmit={async(e)=>{e.preventDefault();const title=draftTitle.trim();if(!title)return;try{await onRename(item.book,title);setEditing(null);setMessage("Judul berhasil diubah.");}catch(error){setMessage(error instanceof Error?error.message:"Judul gagal diubah.");}}}><input maxLength={300} autoFocus value={draftTitle} onChange={(e)=>setDraftTitle(e.target.value)} aria-label="Judul baru"/><button>Simpan</button><button type="button" onClick={()=>setEditing(null)}>Batal</button></form>:<h3>{item.title}</h3>}<span>{item.author}</span><div className="book-meta-row"><small><Headphones size={13}/>{item.duration}</small><small>{statusForProgress(item.progress)} · {item.progress}%</small></div><div className="mini-progress"><i style={{width:`${item.progress}%`}}/></div>
+      <div className="book-actions"><button onClick={()=>item.kind==="personal"?onSelect(item.book):onOpenLibriVox(item.book)}><Play size={13}/> {item.progress>0?"Lanjutkan":"Putar"}</button>{item.kind==="personal"&&!item.book.id.startsWith("demo-")&&<><button onClick={()=>{setEditing(item.book.id);setDraftTitle(item.book.title);}}><Pencil size={13}/> Ubah judul</button><button disabled={!item.book.generated||exporting===item.book.id} onClick={()=>downloadAudio(item.book)}><Download size={13}/> {exporting===item.book.id?"Mengekspor…":"Unduh audio"}</button><button className="delete-book" onClick={async()=>{if(!window.confirm(`Hapus “${item.book.title}” beserta audio lokalnya?`))return;try{await onDelete(item.book);setMessage("Buku berhasil dihapus.");}catch(error){setMessage(error instanceof Error?error.message:"Buku gagal dihapus.");}}}><Trash2 size={13}/> Hapus</button></>}{item.kind==="librivox"&&<button className="delete-book" onClick={()=>onRemoveLibriVox(item.book)}><Trash2 size={13}/> Hapus dari koleksi</button>}</div></div>
+    </article>)}</div>
+    {!visible.length&&<div className="empty-state"><BookOpen size={30}/><h3>Buku tidak ditemukan</h3><p>{unified.length?"Coba kata kunci atau filter lain.":"Simpan buku pribadi atau audiobook LibriVox agar muncul di sini."}</p></div>}{message&&<p className="catalog-message">{message}</p>}
+  </div>;
 }
 
-export function ActivityView({ recent = [] }: { recent?: string[] }) {
-  return (
-    <div className="view activity-view">
-      <div className="page-title-row"><div><p className="eyebrow">RIWAYAT PROSES</p><h1>Aktivitas</h1><p>Buku yang berhasil kamu proses tercatat di sini.</p></div></div>
-      {recent.length === 0 ? (
-        <div className="empty-state"><FileAudio size={30} /><h3>Belum ada aktivitas</h3><p>Audiobook yang kamu buat akan muncul di sini.</p></div>
-      ) : (
-        <section className="activity-list">
-          <div className="activity-list-heading"><h3>Semua aktivitas</h3></div>
-          {recent.map((title, index) => (
-            <article key={`${title}-${index}`}>
-              <span className="activity-state"><Check size={18} /></span>
-              <div><h4>{title}</h4><p>Audio selesai dibuat</p></div>
-              <time>Baru saja</time>
-            </article>
-          ))}
-        </section>
-      )}
-    </div>
-  );
-}
+export function ActivityView({recent=[]}:{recent?:string[]}){return <div className="view activity-view"><div className="page-title-row"><div><p className="eyebrow">RIWAYAT PROSES</p><h1>Aktivitas</h1><p>Buku yang berhasil kamu proses tercatat di sini.</p></div></div>{recent.length===0?<div className="empty-state"><FileAudio size={30}/><h3>Belum ada aktivitas</h3><p>Audiobook yang kamu buat akan muncul di sini.</p></div>:<section className="activity-list"><div className="activity-list-heading"><h3>Semua aktivitas</h3></div>{recent.map((title,index)=><article key={`${title}-${index}`}><span className="activity-state"><Check size={18}/></span><div><h4>{title}</h4><p>Audio selesai dibuat</p></div><time>Baru saja</time></article>)}</section>}</div>;}
